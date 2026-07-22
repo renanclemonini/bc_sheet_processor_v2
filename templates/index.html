@@ -320,6 +320,7 @@
             fileInput.files = e.dataTransfer.files;
             if (fileInput.files.length > 0) {
                 fileName.textContent = `Arquivo selecionado: ${fileInput.files[0].name}`;
+                form.requestSubmit();
             }
         });
 
