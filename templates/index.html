@@ -300,6 +300,7 @@
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
                 fileName.textContent = `Arquivo selecionado: ${e.target.files[0].name}`;
+                form.requestSubmit();
             }
         });
 
