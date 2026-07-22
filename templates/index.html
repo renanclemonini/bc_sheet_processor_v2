@@ -331,20 +331,23 @@
             } catch {
                 throw { type: 'network', message: 'Servidor indisponível. Verifique sua conexão.' };
             }
-            let data;
+
+            const text = await response.text();
+
+            if (!response.ok) {
+                let detail;
+                try { detail = JSON.parse(text).detail; } catch {}
+                throw { type: 'http', message: detail || `Erro ${response.status}`, status: response.status };
+            }
+
             try {
-                data = await response.json();
+                return JSON.parse(text);
             } catch {
-                const text = await response.text();
                 if (text.includes('Not Found') || text.includes('not found')) {
                     throw { type: 'coldstart', message: 'Servidor iniciando...' };
                 }
                 throw { type: 'parse', message: 'Resposta inesperada do servidor.' };
             }
-            if (!response.ok) {
-                throw { type: 'http', message: data.detail || `Erro ${response.status}`, status: response.status };
-            }
-            return data;
         }
 
         function showColdStart(tentativa, maxTentativas) {

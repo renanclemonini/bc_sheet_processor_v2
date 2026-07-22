@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BotConversa Landing Page — Design System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    /* ══════════════════════════════════════════
+       CSS CUSTOM PROPERTIES (Design Tokens)
+       ══════════════════════════════════════════ */
+    :root {
+      /* ── Brand Blues ── */
+      --blue-primary: rgb(43, 118, 229);
+      --blue-light: rgb(110, 168, 255);
+      --blue-accent: rgb(48, 131, 255);
+      --blue-btn-fill: rgb(48, 131, 255);
+      --blue-hero-start: rgb(234, 243, 255);
+      --blue-hero-end: rgb(247, 250, 255);
+
+      /* ── Brand Green ── */
+      --green-logo: rgb(40, 199, 101);
+
+      /* ── Dark Neutrals ── */
+      --dark-1: rgb(24, 25, 28);
+      --dark-2: rgb(28, 30, 34);
+      --dark-3: rgb(42, 45, 50);
+
+      /* ── Text Colors ── */
+      --text-heading: rgb(24, 25, 28);
+      --text-body: rgb(47, 50, 56);
+      --text-muted: rgb(109, 111, 116);
+      --text-light-muted: rgb(172, 173, 175);
+      --text-white: rgb(255, 255, 255);
+
+      /* ── Surfaces ── */
+      --page-bg: rgb(248, 246, 241);
+      --card-white: rgb(255, 255, 255);
+
+      /* ── Gradients ── */
+      --grad-cta-accent: linear-gradient(180deg, rgb(110,168,255) 0%, rgb(43,118,229) 100%);
+      --grad-dark-btn: linear-gradient(180deg, rgb(42,45,50) 0%, rgb(28,30,34) 100%);
+      --grad-card-dark: linear-gradient(180deg, rgb(42,45,50) 0%, rgb(28,30,34) 25%);
+      --grad-card-accent: linear-gradient(180deg, rgb(48,131,255) 0%, rgb(43,118,229) 25%);
+      --grad-badge: radial-gradient(43% 75% at 50% 100%, rgb(214,230,255) 0%, rgb(193,193,195) 100%);
+      --grad-badge-inner: radial-gradient(50% 10% at 50% 100%, rgb(234,243,255), rgb(247,250,255));
+      --grad-hero-bg: radial-gradient(90% 38% at 50% 100%, rgb(234,243,255) 24.32%, rgb(247,250,255) 100%);
+
+      /* ── Button Fills ── */
+      --dark-btn-fill: rgb(33, 35, 39);
+
+      /* ── Shadows ── */
+      --shadow-card: 0px 1px 20px rgba(0,0,0,0.03);
+
+      /* ── Radii ── */
+      --radius-sm: 8px;
+      --radius-md: 16px;
+      --radius-lg: 20px;
+      --radius-xl: 21px;
+      --radius-badge: 28px;
+      --radius-nav: 40px;
+    }
+
+    /* ══════════════════════════════════════════
+       BASE & RESET
+       ══════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      background: var(--page-bg);
+      font-family: 'Nunito Sans', system-ui, sans-serif;
+      margin: 0;
+      color: var(--text-body);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    img { display: block; max-width: 100%; }
+    [id] { scroll-margin-top: 80px; }
+
+    /* ══════════════════════════════════════════
+       STICKY NAVIGATION
+       ══════════════════════════════════════════ */
+    .ds-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; justify-content: center;
+      padding: 12px 24px;
+      transition: all 0.3s ease;
+    }
+    .ds-nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      max-width: 1200px; width: 100%;
+      background: rgba(255,255,255,0);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      border: 1px solid rgba(117,115,114,0);
+      border-radius: var(--radius-nav);
+      padding: 8px 8px 8px 20px;
+      transition: background 0.3s ease, backdrop-filter 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    .ds-nav.scrolled .ds-nav-inner {
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-color: rgba(117,115,114,0.15);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .ds-nav-logo {
+      display: flex; align-items: center; gap: 8px;
+      text-decoration: none; color: var(--text-heading);
+      font-weight: 700; font-size: 15px;
+    }
+    .ds-nav-logo svg { width: 24px; height: 24px; }
+    .ds-nav-links {
+      display: flex; align-items: center; gap: 4px;
+    }
+    .ds-nav-links a {
+      color: var(--text-body);
+      text-decoration: none;
+      font-size: 14px; font-weight: 400;
+      padding: 8px 12px;
+      border-radius: 8px;
+      transition: background 0.2s, color 0.2s;
+    }
+    .ds-nav-links a:hover { background: rgba(0,0,0,0.04); }
+    .ds-nav-links a.active { color: var(--blue-primary); font-weight: 600; }
+    .ds-nav-cta {
+      display: inline-flex; align-items: center;
+      background: var(--grad-dark-btn);
+      color: var(--text-white);
+      font-size: 13px; font-weight: 500;
+      padding: 1px; height: 36px;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .ds-nav-cta span {
+      display: flex; align-items: center; justify-content: center;
+      background: rgb(33, 35, 39);
+      border-radius: 7px;
+      width: 100%; height: 100%;
+      padding: 0 16px;
+    }
+    .ds-nav-cta:hover { opacity: 0.9; }
+
+    /* ══════════════════════════════════════════
+       SECTION HELPERS
+       ══════════════════════════════════════════ */
+    .ds-section {
+      padding: 100px 40px;
+      max-width: 1520px;
+      margin: 0 auto;
+    }
+    .ds-section-dark {
+      background: var(--dark-1);
+      color: var(--text-white);
+    }
+    .ds-section-light {
+      background: var(--page-bg);
+    }
+    .ds-section-title {
+      font-size: 36px; font-weight: 600; line-height: 43.2px;
+      margin: 0 0 12px;
+    }
+    .ds-section-subtitle {
+      font-size: 16px; font-weight: 400; line-height: 22.4px;
+      margin: 0 0 48px;
+      opacity: 0.6;
+    }
+    .ds-label {
+      display: inline-block;
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      opacity: 0.45;
+      margin-bottom: 24px;
+    }
+    .ds-divider {
+      border: none;
+      border-top: 1px solid rgba(0,0,0,0.06);
+      margin: 48px 0;
+    }
+    .ds-divider-dark {
+      border-top-color: rgba(255,255,255,0.08);
+    }
+
+    /* ══════════════════════════════════════════
+       KEYFRAMES
+       ══════════════════════════════════════════ */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes marqueeScroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* ── Fade-up on scroll ── */
+    .ds-reveal {
+      opacity: 0; transform: translateY(20px);
+      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .ds-reveal.revealed { opacity: 1; transform: none; }
+
+    /* ── Hero fade-in ── */
+    .hero-fade { opacity: 0; transform: translateY(20px); animation: fadeUp 0.7s ease-out forwards; }
+    .hero-fade-1 { animation-delay: 0s; }
+    .hero-fade-2 { animation-delay: 0.12s; }
+    .hero-fade-3 { animation-delay: 0.24s; }
+    .hero-fade-4 { animation-delay: 0.36s; }
+    .hero-fade-5 { animation-delay: 0.48s; }
+
+    /* ══════════════════════════════════════════
+       HERO SECTION
+       ══════════════════════════════════════════ */
+    .hero {
+      background: var(--grad-hero-bg);
+      padding: 144px 64px 80px;
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center;
+      gap: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--grad-badge);
+      border-radius: var(--radius-badge);
+      padding: 1px;
+      font-size: 12px; font-weight: 600;
+      color: var(--text-body);
+      position: relative;
+    }
+    .hero-badge-inner {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: radial-gradient(50% 10% at 50% 100%, rgb(234,243,255), rgb(247,250,255));
+      border-radius: 27px;
+      padding: 8px 16px;
+    }
+    .hero-badge svg { width: 16px; height: 11px; flex-shrink: 0; }
+    .hero h1 {
+      font-size: 64px; font-weight: 700; line-height: 64px;
+      color: var(--text-heading);
+      margin: 0; max-width: 800px;
+    }
+    .hero-subtitle {
+      font-size: 20px; font-weight: 400; line-height: 28px;
+      color: var(--text-muted);
+      margin: 0; max-width: 580px;
+    }
+    .hero-dashboard {
+      margin-top: 32px;
+      width: 100%; max-width: 1072px;
+      border-radius: 12px;
+      overflow: hidden;
+      transform: perspective(1000px) rotateX(8deg) scale(0.92);
+      box-shadow: 0 40px 80px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
+    }
+    .hero-dashboard img { width: 100%; display: block; }
+    .hero-social {
+      display: flex; flex-direction: column; align-items: center; gap: 16px;
+      margin-top: 16px;
+    }
+    .hero-social-text {
+      font-size: 16px; font-weight: 600; line-height: 22.4px;
+      color: var(--text-heading);
+    }
+    .hero-social-logos {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .hero-social-logos img {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+
+    /* ══════════════════════════════════════════
+       BUTTONS
+       ══════════════════════════════════════════ */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      font-family: 'Nunito Sans', sans-serif;
+      font-weight: 500;
+      border: none; cursor: pointer;
+      text-decoration: none;
+      border-radius: var(--radius-sm);
+      transition: opacity 0.2s, transform 0.2s;
+      position: relative; overflow: hidden;
+    }
+    .btn:hover { opacity: 0.92; }
+    .btn:active { transform: scale(0.97); }
+    .btn-accent {
+      background: var(--grad-cta-accent);
+      color: var(--text-white);
+      font-size: 16px; padding: 1px; height: 48px;
+    }
+    .btn-accent .btn-fill {
+      display: flex; align-items: center; justify-content: center;
+      background: rgb(48, 131, 255);
+      border-radius: 7px;
+      width: 100%; height: 100%;
+      padding: 0 20px;
+    }
+    .btn-dark {
+      background: var(--grad-dark-btn);
+      color: var(--text-white);
+      font-size: 13px; padding: 1px; height: 36px;
+    }
+    .btn-dark .btn-fill {
+      display: flex; align-items: center; justify-content: center;
+      background: rgb(33, 35, 39);
+      border-radius: 7px;
+      width: 100%; height: 100%;
+      padding: 0 16px;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: var(--text-white);
+      font-size: 14px; padding: 0 20px; height: 40px;
+    }
+    .btn-outline:hover { border-color: rgba(255,255,255,0.3); }
+    .btn-disabled { opacity: 0.5; pointer-events: none; }
+
+    /* ══════════════════════════════════════════
+       CARDS
+       ══════════════════════════════════════════ */
+    .card-gradient-border {
+      background: var(--grad-card-dark);
+      border-radius: var(--radius-md);
+      padding: 1px;
+      overflow: clip;
+    }
+    .card-gradient-border > .card-inner {
+      background: var(--dark-1);
+      border-radius: 15px;
+      padding: 32px;
+      height: 100%;
+    }
+    .card-accent-border {
+      background: var(--grad-card-accent);
+      border-radius: var(--radius-md);
+      padding: 1px;
+      overflow: clip;
+    }
+    .card-accent-border > .card-inner {
+      background: var(--dark-1);
+      border-radius: 15px;
+      padding: 32px;
+      height: 100%;
+    }
+    .card-usp {
+      background: var(--grad-dark-btn);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      color: var(--text-white);
+    }
+    .card-faq {
+      background: var(--card-white);
+      border-radius: var(--radius-md);
+      padding: 28px;
+      box-shadow: var(--shadow-card);
+    }
+    .card-testimonial {
+      background: var(--card-white);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-card);
+      min-width: 340px;
+    }
+    .card-pricing {
+      background: var(--grad-card-dark);
+      border-radius: var(--radius-md);
+      padding: 1px;
+      overflow: clip;
+      flex: 1;
+    }
+    .card-pricing > .card-inner {
+      background: var(--dark-1);
+      border-radius: 15px;
+      padding: 32px;
+      display: flex; flex-direction: column; gap: 24px;
+    }
+    .card-pricing.recommended {
+      background: var(--grad-card-accent);
+    }
+
+    /* ══════════════════════════════════════════
+       FAQ ACCORDION
+       ══════════════════════════════════════════ */
+    .faq-item {
+      background: var(--card-white);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: box-shadow 0.3s;
+    }
+    .faq-trigger {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 28px;
+      cursor: pointer;
+      font-size: 18px; font-weight: 600;
+      color: var(--text-heading);
+      user-select: none;
+    }
+    .faq-trigger svg {
+      width: 20px; height: 20px;
+      transition: transform 0.3s ease;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .faq-item.open .faq-trigger svg { transform: rotate(180deg); }
+    .faq-content {
+      max-height: 0; overflow: hidden;
+      transition: max-height 0.35s ease, padding 0.35s ease;
+      padding: 0 28px;
+    }
+    .faq-item.open .faq-content {
+      max-height: 200px;
+      padding: 0 28px 28px;
+    }
+    .faq-content p {
+      margin: 0;
+      font-size: 16px; line-height: 24px;
+      color: var(--text-muted);
+    }
+
+    /* ══════════════════════════════════════════
+       MARQUEE
+       ══════════════════════════════════════════ */
+    .marquee-container {
+      overflow: hidden;
+      width: 100%;
+      mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+      -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+    }
+    .marquee-track {
+      display: flex; align-items: center; gap: 32px;
+      animation: marqueeScroll 25s linear infinite;
+      width: max-content;
+    }
+    .marquee-track img {
+      width: 48px; height: 48px;
+      border-radius: 10px;
+      object-fit: cover;
+      opacity: 0.7;
+      transition: opacity 0.3s;
+    }
+    .marquee-track img:hover { opacity: 1; }
+
+    /* ══════════════════════════════════════════
+       TYPOGRAPHY SPECIMEN
+       ══════════════════════════════════════════ */
+    .type-row {
+      display: flex; align-items: baseline; gap: 32px;
+      padding: 24px 0;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .type-row:last-child { border-bottom: none; }
+    .type-meta {
+      flex: 0 0 200px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .type-meta-name {
+      font-size: 13px; font-weight: 700;
+      color: var(--text-heading);
+    }
+    .type-meta-detail {
+      font-size: 12px; font-weight: 400;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+    .type-preview { flex: 1; }
+
+    /* ══════════════════════════════════════════
+       COLOR SWATCHES
+       ══════════════════════════════════════════ */
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px;
+    }
+    .swatch {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .swatch-color {
+      height: 80px;
+      display: flex; align-items: flex-end; padding: 8px;
+    }
+    .swatch-info {
+      padding: 12px;
+      background: white;
+    }
+    .swatch-name {
+      font-size: 13px; font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: 2px;
+    }
+    .swatch-value {
+      font-size: 11px; font-weight: 400;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+    .gradient-strip {
+      height: 56px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+    .gradient-label {
+      font-size: 12px; font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: 2px;
+    }
+    .gradient-value {
+      font-size: 11px; color: var(--text-muted);
+      font-family: monospace;
+      word-break: break-all;
+      margin-bottom: 20px;
+    }
+
+    /* ══════════════════════════════════════════
+       COMPONENT SHOWCASE GRID
+       ══════════════════════════════════════════ */
+    .showcase-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 24px;
+    }
+    .showcase-item {
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .showcase-label {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0.5;
+    }
+
+    /* ══════════════════════════════════════════
+       IMAGE CATALOG
+       ══════════════════════════════════════════ */
+    .img-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 20px;
+    }
+    .img-card {
+      border-radius: 12px; overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.06);
+      background: white;
+    }
+    .img-card-preview {
+      height: 140px;
+      background: #f0f0f0;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    .img-card-preview img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    .img-card-info {
+      padding: 12px;
+    }
+    .img-card-alt {
+      font-size: 12px; font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: 4px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .img-card-dims {
+      font-size: 11px; color: var(--text-muted); font-family: monospace;
+    }
+
+    /* ══════════════════════════════════════════
+       LAYOUT DEMOS
+       ══════════════════════════════════════════ */
+    .layout-demo-box {
+      background: rgba(43,118,229,0.08);
+      border: 1px dashed rgba(43,118,229,0.3);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      font-size: 13px; font-weight: 600;
+      color: var(--blue-primary);
+    }
+    .spacing-bar {
+      background: rgba(43,118,229,0.12);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      color: var(--blue-primary);
+      font-family: monospace;
+    }
+
+    /* ══════════════════════════════════════════
+       COMPARISON
+       ══════════════════════════════════════════ */
+    .comparison-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+    .comparison-list li {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 15px; line-height: 22px;
+    }
+    .comparison-icon {
+      width: 18px; height: 18px; min-width: 18px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .comparison-icon svg {
+      width: 10px; height: 10px;
+    }
+    .comparison-icon-x {
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .comparison-icon-x svg { fill: rgba(255, 255, 255, 0.8); }
+    .comparison-icon-check {
+      background: rgb(43, 118, 229);
+    }
+    .comparison-icon-check svg { fill: rgb(255, 255, 255); }
+
+    /* ══════════════════════════════════════════
+       RESPONSIVE
+       ══════════════════════════════════════════ */
+    @media (max-width: 1279px) {
+      .hero h1 { font-size: 48px; line-height: 48px; }
+      .ds-section { padding: 80px 32px; }
+      .ds-nav-links { display: none; }
+    }
+    @media (max-width: 809px) {
+      .hero { padding: 120px 24px 60px; }
+      .hero h1 { font-size: 36px; line-height: 40px; }
+      .hero-subtitle { font-size: 16px; }
+      .ds-section { padding: 60px 20px; }
+      .showcase-grid { grid-template-columns: 1fr; }
+      .swatch-grid { grid-template-columns: repeat(2, 1fr); }
+      .type-row { flex-direction: column; gap: 8px; }
+      .type-meta { flex: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════
+     NAVIGATION
+     ══════════════════════════════════════════════════════════════ -->
+<nav class="ds-nav" id="ds-nav">
+  <div class="ds-nav-inner">
+    <a href="#hero" class="ds-nav-logo">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="24" height="24">
+        <g transform="translate(0 0.5)">
+          <path d="M 2.184 14.049 C 2.184 9.686 5.725 6.148 10.094 6.148 L 16.09 6.148 C 20.458 6.148 24 9.686 24 14.049 C 24 18.412 20.458 21.949 16.09 21.949 L 10.094 21.949 C 5.726 21.949 2.184 18.412 2.184 14.049 Z" fill="rgb(48,131,255)"/>
+          <path d="M 2.218 0 C 3.443 0 4.436 0.992 4.436 2.215 L 4.436 13.881 L 0 13.881 L 0 2.215 C 0 0.992 0.993 0 2.218 0 Z" fill="rgb(40,199,101)"/>
+          <path d="M 12.529 13.916 C 12.529 15.14 11.547 16.132 10.335 16.132 C 9.123 16.132 8.141 15.14 8.141 13.917 C 8.141 12.693 9.123 11.701 10.335 11.701 C 11.547 11.701 12.529 12.693 12.529 13.916 Z M 19.475 13.916 C 19.475 15.14 18.493 16.132 17.281 16.132 C 16.07 16.132 15.088 15.14 15.088 13.917 C 15.088 12.693 16.07 11.701 17.281 11.701 C 18.493 11.701 19.475 12.693 19.475 13.916 Z" fill="rgb(255,255,255)"/>
+          <path d="M 0 13.884 C 0 8.299 4.53 3.768 10.122 3.768 L 11.311 3.768 C 12.11 3.758 12.853 4.178 13.256 4.867 C 13.659 5.557 13.659 6.41 13.256 7.1 C 12.853 7.789 12.11 8.209 11.311 8.199 L 10.122 8.199 C 6.983 8.199 4.436 10.742 4.436 13.884 C 4.436 17.025 6.983 19.57 10.123 19.57 L 15.869 19.57 C 16.669 19.559 17.412 19.979 17.815 20.668 C 18.218 21.358 18.218 22.211 17.815 22.901 C 17.412 23.591 16.669 24.01 15.869 24 L 10.122 24 C 4.531 24 0 19.469 0 13.884 Z" fill="rgb(40,199,101)"/>
+        </g>
+      </svg>
+      Design System — Landing Page
+    </a>
+    <div class="ds-nav-links">
+      <a href="#hero">Hero</a>
+      <a href="#typography">Tipografia</a>
+      <a href="#colors">Cores</a>
+      <a href="#components">Componentes</a>
+      <a href="#layout">Layout</a>
+      <a href="#motion">Animações</a>
+      <a href="#images">Imagens</a>
+    </div>
+    <a href="#hero" class="ds-nav-cta"><span>Vamos começar</span></a>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════
+     1) HERO SECTION
+     ══════════════════════════════════════════════════════════════ -->
+<section class="hero" id="hero">
+  <div class="hero-fade hero-fade-1">
+    <div class="hero-badge">
+      <div class="hero-badge-inner">
+        <svg width="16" height="11" viewBox="0 0 16.06 10.667" overflow="visible" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 1.735 7.034 C 1.735 7.648 1.869 8.118 2.045 8.403 C 2.276 8.776 2.62 8.934 2.97 8.934 C 3.423 8.934 3.837 8.822 4.634 7.719 C 5.273 6.835 6.026 5.594 6.532 4.816 L 7.39 3.498 C 7.986 2.583 8.676 1.565 9.467 0.876 C 10.112 0.313 10.809 0 11.509 0 C 12.686 0 13.807 0.682 14.665 1.961 C 15.603 3.361 16.059 5.126 16.059 6.946 C 16.059 8.028 15.846 8.824 15.483 9.452 C 15.132 10.06 14.449 10.667 13.299 10.667 L 13.299 8.934 C 14.283 8.934 14.529 8.03 14.529 6.994 C 14.529 5.519 14.185 3.881 13.427 2.711 C 12.889 1.881 12.192 1.374 11.426 1.374 C 10.596 1.374 9.929 2 9.179 3.115 C 8.78 3.708 8.371 4.43 7.911 5.245 L 7.405 6.141 C 6.389 7.943 6.131 8.354 5.623 9.031 C 4.732 10.217 3.972 10.667 2.97 10.667 C 1.783 10.667 1.031 10.152 0.566 9.377 C 0.187 8.746 0 7.917 0 6.972 Z" fill="rgb(0,129,251)"/>
+          <defs>
+            <linearGradient id="meta-grad-1" x1="0" x2="1" y1="0.472" y2="0.528">
+              <stop offset="0" stop-color="rgb(0,100,225)"/>
+              <stop offset="1" stop-color="rgb(0,130,251)"/>
+            </linearGradient>
+            <linearGradient id="meta-grad-2" x1="0.497" x2="0.503" y1="1" y2="0">
+              <stop offset="0" stop-color="rgb(0,130,251)"/>
+              <stop offset="1" stop-color="rgb(0,100,224)"/>
+            </linearGradient>
+          </defs>
+          <path d="M 1.368 2.083 C 2.163 0.857 3.311 0 4.627 0 C 5.39 0 6.148 0.226 6.939 0.872 C 7.805 1.578 8.727 2.742 9.878 4.659 L 10.291 5.347 C 11.287 7.006 11.854 7.86 12.186 8.263 C 12.612 8.78 12.911 8.934 13.299 8.934 C 14.284 8.934 14.53 8.03 14.53 6.994 L 16.06 6.946 C 16.06 8.028 15.846 8.824 15.483 9.452 C 15.133 10.06 14.449 10.667 13.299 10.667 C 12.584 10.667 11.951 10.511 11.251 9.851 C 10.712 9.344 10.083 8.443 9.599 7.633 L 8.159 5.227 C 7.436 4.02 6.773 3.12 6.389 2.712 C 5.977 2.274 5.446 1.744 4.6 1.744 C 3.914 1.744 3.332 2.225 2.845 2.96 Z" fill="url(#meta-grad-1)"/>
+          <path d="M 4.599 1.744 C 3.914 1.744 3.332 2.225 2.845 2.96 C 2.156 4 1.735 5.548 1.735 7.034 C 1.735 7.648 1.869 8.118 2.045 8.403 L 0.566 9.377 C 0.187 8.746 0 7.917 0 6.972 C 0 5.255 0.471 3.465 1.368 2.083 C 2.163 0.857 3.311 0 4.627 0 Z" fill="url(#meta-grad-2)"/>
+        </svg>
+        Parceiro de Negócios da Meta
+      </div>
+    </div>
+  </div>
+
+  <h1 class="hero-fade hero-fade-2">Automatize seus chats do WhatsApp com Assistentes de IA</h1>
+
+  <p class="hero-subtitle hero-fade hero-fade-3">
+    Lançamento em minutos. Nenhuma codificação necessária. Expanda suas conversas sem aumentar a equipe.
+  </p>
+
+  <div class="hero-fade hero-fade-4">
+    <a href="#components" class="btn btn-accent"><span class="btn-fill">Comece agora</span></a>
+  </div>
+
+  <div class="hero-dashboard hero-fade hero-fade-5">
+    <img src="https://framerusercontent.com/images/4S6XRkW17Mv3vwVxkPsRTDo2fic.png?width=3838&height=1972" alt="Dashboard BotConversa" loading="lazy">
+  </div>
+
+  <div class="hero-social hero-fade hero-fade-5">
+    <span class="hero-social-text">Mais de 45.000 empresas multiplicaram seus resultados com a BotConversa</span>
+    <div class="hero-social-logos">
+      <img src="https://framerusercontent.com/images/OPjeUJTDGsHMx3PbDOJoRhLdYw.png?width=100&height=100" alt="Nuvio">
+      <img src="https://framerusercontent.com/images/ZvXKsK53rZLOBhAs3pcGOzk2suo.png?width=100&height=100" alt="Klyra">
+      <img src="https://framerusercontent.com/images/CAGSvw7bZtJFY5ynouxW3RC2W0.png?width=100&height=100" alt="Knot">
+      <img src="https://framerusercontent.com/images/lnYQmAZQbqPcVzQfeJi0fb9Q.png?width=100&height=100" alt="Veltix">
+      <img src="https://framerusercontent.com/images/vhcID6SDeRTW7aKyOCFatlczQ8.png?width=100&height=100" alt="Partner 5">
+      <img src="https://framerusercontent.com/images/TMRVapgy4LVpILz6SRfNKYEpsw.png?width=100&height=100" alt="Partner 6">
+      <img src="https://framerusercontent.com/images/6lzSVDcaBK5aFUAKkW5VazbTK2U.png?width=100&height=100" alt="Partner 7">
+      <img src="https://framerusercontent.com/images/SXvNhwe0kFUGsQpzWI8xbuFnSuk.png?width=100&height=100" alt="Partner 8">
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     2) TYPOGRAPHY
+     ══════════════════════════════════════════════════════════════ -->
+<section class="ds-section ds-section-light" id="typography">
+  <span class="ds-label">Tipografia</span>
+  <h2 class="ds-section-title" style="color: var(--text-heading);">Escala Tipográfica</h2>
+  <p class="ds-section-subtitle" style="color: var(--text-muted);">Toda a tipografia usa Nunito Sans. Abaixo, cada nível da escala com tamanho, peso e line-height exatos.</p>
+
+  <div>
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">H1 — Hero</span>
+        <span class="type-meta-detail">64px / 700 / lh: 64px</span>
+      </div>
+      <div class="type-preview" style="font-size:64px;font-weight:700;line-height:64px;color:var(--text-heading);">
+        Automatize seus chats
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">H2 — Section</span>
+        <span class="type-meta-detail">48px / 600 / lh: 48px</span>
+      </div>
+      <div class="type-preview" style="font-size:48px;font-weight:600;line-height:48px;color:var(--text-heading);">
+        Tudo que você precisa
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">H3 — Subsection</span>
+        <span class="type-meta-detail">36px / 600 / lh: 43.2px</span>
+      </div>
+      <div class="type-preview" style="font-size:36px;font-weight:600;line-height:43.2px;color:var(--text-heading);">
+        Ferramentas especiais
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">H4</span>
+        <span class="type-meta-detail">28px / 600 / lh: 33.6px</span>
+      </div>
+      <div class="type-preview" style="font-size:28px;font-weight:600;line-height:33.6px;color:var(--text-heading);">
+        Sem BotConversa
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">H5 — Card Title</span>
+        <span class="type-meta-detail">20px / 600 / lh: 24px</span>
+      </div>
+      <div class="type-preview" style="font-size:20px;font-weight:600;line-height:24px;color:var(--text-heading);">
+        Construa com blocos — ou deixe a IA construir
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">H6 — Small Title</span>
+        <span class="type-meta-detail">18px / 500 / lh: 21.6px</span>
+      </div>
+      <div class="type-preview" style="font-size:18px;font-weight:500;line-height:21.6px;color:var(--text-heading);">
+        Conecte suas ferramentas existentes
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">Body Large</span>
+        <span class="type-meta-detail">20px / 400 / lh: 28px</span>
+      </div>
+      <div class="type-preview" style="font-size:20px;font-weight:400;line-height:28px;color:var(--text-muted);">
+        Lançamento em minutos. Nenhuma codificação necessária. Expanda suas conversas sem aumentar a equipe.
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">Body</span>
+        <span class="type-meta-detail">16px / 400 / lh: 22.4px</span>
+      </div>
+      <div class="type-preview" style="font-size:16px;font-weight:400;line-height:22.4px;color:var(--text-muted);">
+        Crie chatbots, automações e assistentes de IA simplesmente conectando blocos — ou deixe a IA montar tudo para você em segundos.
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">Body (SemiBold)</span>
+        <span class="type-meta-detail">16px / 600 / lh: 22.4px</span>
+      </div>
+      <div class="type-preview" style="font-size:16px;font-weight:600;line-height:22.4px;color:var(--text-heading);">
+        Mais de 45.000 empresas multiplicaram seus resultados com a BotConversa
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">Body Small</span>
+        <span class="type-meta-detail">14px / 400 / lh: 16.8px</span>
+      </div>
+      <div class="type-preview" style="font-size:14px;font-weight:400;line-height:16.8px;color:var(--text-body);">
+        Recursos &nbsp; Preços &nbsp; Depoimentos &nbsp; Perguntas Frequentes
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">Badge Text</span>
+        <span class="type-meta-detail">12px / 600 / lh: 16px</span>
+      </div>
+      <div class="type-preview" style="font-size:12px;font-weight:600;line-height:16px;color:var(--text-body);">
+        Parceiro de Negócios da Meta
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">Price Display</span>
+        <span class="type-meta-detail">44px / 500 / lh: 44px</span>
+      </div>
+      <div class="type-preview" style="font-size:44px;font-weight:500;line-height:44px;color:var(--text-heading);">
+        R$ 199
+      </div>
+    </div>
+
+    <div class="type-row">
+      <div class="type-meta">
+        <span class="type-meta-name">Nav CTA</span>
+        <span class="type-meta-detail">13px / 500 / lh: 15.6px</span>
+      </div>
+      <div class="type-preview" style="font-size:13px;font-weight:500;line-height:15.6px;color:var(--text-white);background:var(--dark-1);display:inline-block;padding:8px 16px;border-radius:8px;">
+        Vamos começar
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     3) COLORS & SURFACES
+     ══════════════════════════════════════════════════════════════ -->
+<section class="ds-section" id="colors" style="background: rgb(235,244,253);">
+  <span class="ds-label">Cores</span>
+  <h2 class="ds-section-title" style="color: var(--text-heading);">Paleta de Cores & Superfícies</h2>
+  <p class="ds-section-subtitle" style="color: var(--text-muted);">Todos os tokens de cor extraídos da landing page Framer.</p>
+
+  <!-- Page Backgrounds -->
+  <span class="ds-label" style="margin-top:16px;">Fundos de Página</span>
+  <div class="swatch-grid" style="margin-bottom:40px;">
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(248,246,241);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Page Background</div>
+        <div class="swatch-value">#f8f6f1</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: var(--grad-hero-bg);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Hero Background</div>
+        <div class="swatch-value">radial-gradient(90% 38%...)</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(24,25,28);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Dark Section</div>
+        <div class="swatch-value">#18191c</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(247,250,255);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Hero End</div>
+        <div class="swatch-value">#f7faff</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: white; border: 1px solid #eee;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Card White</div>
+        <div class="swatch-value">#ffffff</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Text Colors -->
+  <span class="ds-label">Cores de Texto</span>
+  <div class="swatch-grid" style="margin-bottom:40px;">
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(24,25,28);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Heading</div>
+        <div class="swatch-value">#18191c</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(47,50,56);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Body</div>
+        <div class="swatch-value">#2f3238</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(109,111,116);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Muted</div>
+        <div class="swatch-value">#6d6f74</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(172,173,175);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Light Muted</div>
+        <div class="swatch-value">#acadaf</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(255,255,255); border: 1px solid #ddd;"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">White (on dark)</div>
+        <div class="swatch-value">#ffffff</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Brand Colors -->
+  <span class="ds-label">Cores da Marca</span>
+  <div class="swatch-grid" style="margin-bottom:40px;">
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(43,118,229);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Primary Blue</div>
+        <div class="swatch-value">#2b76e5</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(110,168,255);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Light Blue</div>
+        <div class="swatch-value">#6ea8ff</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(48,131,255);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Accent Blue</div>
+        <div class="swatch-value">#3083ff</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(40,199,101);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Logo Green</div>
+        <div class="swatch-value">#28c765</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dark Neutrals -->
+  <span class="ds-label">Neutros Escuros</span>
+  <div class="swatch-grid" style="margin-bottom:40px;">
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(24,25,28);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Dark 1</div>
+        <div class="swatch-value">#18191c</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(28,30,34);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Dark 2</div>
+        <div class="swatch-value">#1c1e22</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(42,45,50);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Dark 3</div>
+        <div class="swatch-value">#2a2d32</div>
+      </div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background: rgb(33,35,39);"></div>
+      <div class="swatch-info">
+        <div class="swatch-name">Dark Btn Fill</div>
+        <div class="swatch-value">#212327</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gradients -->
+  <span class="ds-label">Gradientes</span>
+  <div style="margin-bottom:40px;">
+    <div class="gradient-label">CTA Accent Button</div>
+    <div class="gradient-strip" style="background: var(--grad-cta-accent);"></div>
+    <div class="gradient-value">linear-gradient(180deg, rgb(110,168,255) 0%, rgb(43,118,229) 100%)</div>
+
+    <div class="gradient-label">Dark Button</div>
+    <div class="gradient-strip" style="background: var(--grad-dark-btn);"></div>
+    <div class="gradient-value">linear-gradient(180deg, rgb(42,45,50) 0%, rgb(28,30,34) 100%)</div>
+
+    <div class="gradient-label">Card Dark (Gradient Border)</div>
+    <div class="gradient-strip" style="background: var(--grad-card-dark);"></div>
+    <div class="gradient-value">linear-gradient(180deg, rgb(42,45,50) 0%, rgb(28,30,34) 25%)</div>
+
+    <div class="gradient-label">Card Accent (Blue Border)</div>
+    <div class="gradient-strip" style="background: var(--grad-card-accent);"></div>
+    <div class="gradient-value">linear-gradient(180deg, rgb(48,131,255) 0%, rgb(43,118,229) 25%)</div>
+
+    <div class="gradient-label">Hero Badge (Outer Border)</div>
+    <div class="gradient-strip" style="background: var(--grad-badge);"></div>
+    <div class="gradient-value">radial-gradient(43% 75% at 50% 100%, rgb(214,230,255) 0%, rgb(193,193,195) 100%)</div>
+
+    <div class="gradient-label">Hero Badge (Inner Fill)</div>
+    <div class="gradient-strip" style="background: var(--grad-badge-inner);"></div>
+    <div class="gradient-value">radial-gradient(50% 10% at 50% 100%, rgb(234,243,255), rgb(247,250,255))</div>
+
+    <div class="gradient-label">Hero Background</div>
+    <div class="gradient-strip" style="background: var(--grad-hero-bg);"></div>
+    <div class="gradient-value">radial-gradient(90% 38% at 50% 100%, rgb(234,243,255) 24.32%, rgb(247,250,255) 100%)</div>
+  </div>
+
+  <!-- Shadows -->
+  <span class="ds-label">Sombras</span>
+  <div style="display:flex;gap:24px;flex-wrap:wrap;">
+    <div style="background:white;border-radius:16px;padding:24px 32px;box-shadow:0px 1px 20px rgba(0,0,0,0.03);">
+      <div style="font-size:13px;font-weight:600;color:var(--text-heading);">Card Shadow</div>
+      <div style="font-size:11px;font-family:monospace;color:var(--text-muted);">0px 1px 20px rgba(0,0,0,0.03)</div>
+    </div>
+    <div style="background:white;border-radius:16px;padding:24px 32px;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+      <div style="font-size:13px;font-weight:600;color:var(--text-heading);">Nav Shadow (scrolled)</div>
+      <div style="font-size:11px;font-family:monospace;color:var(--text-muted);">0 4px 24px rgba(0,0,0,0.08)</div>
+    </div>
+    <div style="background:white;border-radius:16px;padding:24px 32px;box-shadow:0 40px 80px rgba(0,0,0,0.12);">
+      <div style="font-size:13px;font-weight:600;color:var(--text-heading);">Dashboard Shadow</div>
+      <div style="font-size:11px;font-family:monospace;color:var(--text-muted);">0 40px 80px rgba(0,0,0,0.12)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     4) UI COMPONENTS
+     ══════════════════════════════════════════════════════════════ -->
+<section class="ds-section ds-section-dark" id="components">
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Componentes</span>
+  <h2 class="ds-section-title">Componentes de Interface</h2>
+  <p class="ds-section-subtitle">Todos os componentes da landing page com seus estados e variantes.</p>
+
+  <!-- BUTTONS -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);margin-top:32px;">Botões</span>
+  <div class="showcase-grid" style="margin-bottom:48px;">
+    <div class="showcase-item">
+      <span class="showcase-label" style="color:rgba(255,255,255,0.4);">L / Accent (Hero CTA)</span>
+      <div><a href="#" class="btn btn-accent" onclick="return false"><span class="btn-fill">Comece agora</span></a></div>
+    </div>
+    <div class="showcase-item">
+      <span class="showcase-label" style="color:rgba(255,255,255,0.4);">S / Dark (Nav CTA)</span>
+      <div><a href="#" class="btn btn-dark" onclick="return false"><span class="btn-fill">Vamos começar</span></a></div>
+    </div>
+    <div class="showcase-item">
+      <span class="showcase-label" style="color:rgba(255,255,255,0.4);">Outline</span>
+      <div><a href="#" class="btn btn-outline" onclick="return false">Saiba mais</a></div>
+    </div>
+    <div class="showcase-item">
+      <span class="showcase-label" style="color:rgba(255,255,255,0.4);">Disabled</span>
+      <div><a href="#" class="btn btn-accent btn-disabled" onclick="return false"><span class="btn-fill">Comece agora</span></a></div>
+    </div>
+  </div>
+
+  <hr class="ds-divider ds-divider-dark">
+
+  <!-- BADGE -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Badge</span>
+  <div style="margin-bottom:48px;">
+    <div class="hero-badge" style="display:inline-flex;">
+      <div class="hero-badge-inner">
+        <svg width="16" height="11" viewBox="0 0 16.06 10.667" overflow="visible" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 1.735 7.034 C 1.735 7.648 1.869 8.118 2.045 8.403 C 2.276 8.776 2.62 8.934 2.97 8.934 C 3.423 8.934 3.837 8.822 4.634 7.719 C 5.273 6.835 6.026 5.594 6.532 4.816 L 7.39 3.498 C 7.986 2.583 8.676 1.565 9.467 0.876 C 10.112 0.313 10.809 0 11.509 0 C 12.686 0 13.807 0.682 14.665 1.961 C 15.603 3.361 16.059 5.126 16.059 6.946 C 16.059 8.028 15.846 8.824 15.483 9.452 C 15.132 10.06 14.449 10.667 13.299 10.667 L 13.299 8.934 C 14.283 8.934 14.529 8.03 14.529 6.994 C 14.529 5.519 14.185 3.881 13.427 2.711 C 12.889 1.881 12.192 1.374 11.426 1.374 C 10.596 1.374 9.929 2 9.179 3.115 C 8.78 3.708 8.371 4.43 7.911 5.245 L 7.405 6.141 C 6.389 7.943 6.131 8.354 5.623 9.031 C 4.732 10.217 3.972 10.667 2.97 10.667 C 1.783 10.667 1.031 10.152 0.566 9.377 C 0.187 8.746 0 7.917 0 6.972 Z" fill="rgb(0,129,251)"/>
+          <defs>
+            <linearGradient id="meta-grad-1" x1="0" x2="1" y1="0.472" y2="0.528">
+              <stop offset="0" stop-color="rgb(0,100,225)"/>
+              <stop offset="1" stop-color="rgb(0,130,251)"/>
+            </linearGradient>
+            <linearGradient id="meta-grad-2" x1="0.497" x2="0.503" y1="1" y2="0">
+              <stop offset="0" stop-color="rgb(0,130,251)"/>
+              <stop offset="1" stop-color="rgb(0,100,224)"/>
+            </linearGradient>
+          </defs>
+          <path d="M 1.368 2.083 C 2.163 0.857 3.311 0 4.627 0 C 5.39 0 6.148 0.226 6.939 0.872 C 7.805 1.578 8.727 2.742 9.878 4.659 L 10.291 5.347 C 11.287 7.006 11.854 7.86 12.186 8.263 C 12.612 8.78 12.911 8.934 13.299 8.934 C 14.284 8.934 14.53 8.03 14.53 6.994 L 16.06 6.946 C 16.06 8.028 15.846 8.824 15.483 9.452 C 15.133 10.06 14.449 10.667 13.299 10.667 C 12.584 10.667 11.951 10.511 11.251 9.851 C 10.712 9.344 10.083 8.443 9.599 7.633 L 8.159 5.227 C 7.436 4.02 6.773 3.12 6.389 2.712 C 5.977 2.274 5.446 1.744 4.6 1.744 C 3.914 1.744 3.332 2.225 2.845 2.96 Z" fill="url(#meta-grad-1)"/>
+          <path d="M 4.599 1.744 C 3.914 1.744 3.332 2.225 2.845 2.96 C 2.156 4 1.735 5.548 1.735 7.034 C 1.735 7.648 1.869 8.118 2.045 8.403 L 0.566 9.377 C 0.187 8.746 0 7.917 0 6.972 C 0 5.255 0.471 3.465 1.368 2.083 C 2.163 0.857 3.311 0 4.627 0 Z" fill="url(#meta-grad-2)"/>
+        </svg>
+        Parceiro de Negócios da Meta
+      </div>
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:rgba(255,255,255,0.4);font-family:monospace;">
+      background: radial-gradient(43% 75% at 50% 100%, rgb(214,230,255), rgb(193,193,195)) &middot; radius: 28px &middot; padding: 8px 12px
+    </div>
+  </div>
+
+  <hr class="ds-divider ds-divider-dark">
+
+  <!-- CARDS -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Cards</span>
+  <div class="showcase-grid" style="margin-bottom:48px;">
+    <div class="showcase-item">
+      <span class="showcase-label" style="color:rgba(255,255,255,0.4);">Feature Bento Card (Dark Gradient Border)</span>
+      <div class="card-gradient-border">
+        <div class="card-inner">
+          <h5 style="font-size:20px;font-weight:600;line-height:24px;margin:0 0 8px;color:var(--text-white);">Construa com blocos</h5>
+          <p style="font-size:16px;line-height:22.4px;color:var(--text-light-muted);margin:0;">Crie chatbots, automações e assistentes de IA simplesmente conectando blocos.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="showcase-item">
+      <span class="showcase-label" style="color:rgba(255,255,255,0.4);">Accent Card (Blue Gradient Border)</span>
+      <div class="card-accent-border">
+        <div class="card-inner">
+          <h5 style="font-size:20px;font-weight:600;line-height:24px;margin:0 0 8px;color:var(--text-white);">Assistente GPT</h5>
+          <p style="font-size:16px;line-height:22.4px;color:var(--text-light-muted);margin:0;">IA que responde, agenda, envia catálogos e fecha vendas 24h por dia.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="showcase-item">
+      <span class="showcase-label" style="color:rgba(255,255,255,0.4);">USP Mini Card</span>
+      <div class="card-usp">
+        <h6 style="font-size:18px;font-weight:500;line-height:21.6px;margin:0 0 8px;">Kanban de CRM</h6>
+        <p style="font-size:14px;line-height:20px;color:var(--text-light-muted);margin:0;">Gerencie leads e negociações com quadros visuais.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Light bg cards -->
+  <div style="background:var(--page-bg);border-radius:20px;padding:40px;margin-bottom:48px;">
+    <span class="ds-label" style="color:var(--text-muted);">Cards em Fundo Claro</span>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px;">
+      <div class="showcase-item">
+        <span class="showcase-label" style="color:var(--text-muted);">FAQ Card</span>
+        <div class="card-faq">
+          <h6 style="font-size:18px;font-weight:600;line-height:24px;margin:0 0 8px;color:var(--text-heading);">Existe uma versão gratuita?</h6>
+          <p style="font-size:16px;line-height:24px;color:var(--text-muted);margin:0;">Sim. Nosso plano Free inclui projetos e tarefas limitados para que você possa testar a plataforma antes de fazer upgrade.</p>
+        </div>
+      </div>
+
+      <div class="showcase-item">
+        <span class="showcase-label" style="color:var(--text-muted);">Testimonial Card</span>
+        <div class="card-testimonial">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+            <img src="https://framerusercontent.com/images/M53lpR5S6cgoswGdTYT86Ij6nc.jpg?width=3149&height=4724" alt="Avatar" style="width:44px;height:44px;border-radius:50%;object-fit:cover;">
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--text-heading);">Carlos Silva</div>
+              <div style="font-size:12px;color:var(--text-muted);">CEO, TechCorp</div>
+            </div>
+          </div>
+          <p style="font-size:15px;line-height:22px;color:var(--text-body);margin:0;">"A BotConversa transformou completamente nosso atendimento ao cliente. Incrível!"</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="ds-divider ds-divider-dark">
+
+  <!-- PRICING CARDS -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Pricing Cards</span>
+  <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:48px;">
+    <div class="card-pricing" style="max-width:380px;">
+      <div class="card-inner">
+        <div>
+          <h3 style="font-size:20px;font-weight:500;line-height:24px;margin:0 0 4px;">Iniciante</h3>
+          <p style="font-size:14px;color:var(--text-light-muted);margin:0;">Para pequenas empresas</p>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:4px;">
+          <span style="font-size:16px;font-weight:500;color:var(--text-light-muted);">R$</span>
+          <span style="font-size:44px;font-weight:500;line-height:44px;">199</span>
+          <span style="font-size:14px;color:var(--text-light-muted);">/mês</span>
+        </div>
+        <a href="#" class="btn btn-dark" onclick="return false" style="width:100%;"><span class="btn-fill" style="justify-content:center;">Começar agora</span></a>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;">
+          <li style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-light-muted);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(40,199,101)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            1.000 conversas/mês
+          </li>
+          <li style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-light-muted);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(40,199,101)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            3 atendentes
+          </li>
+          <li style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-light-muted);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(40,199,101)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Chatbot básico
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card-pricing recommended" style="max-width:380px;">
+      <div class="card-inner">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <h3 style="font-size:20px;font-weight:500;line-height:24px;margin:0 0 4px;">Profissional</h3>
+            <p style="font-size:14px;color:var(--text-light-muted);margin:0;">Para empresas em crescimento</p>
+          </div>
+          <span style="background:rgba(48,131,255,0.15);color:rgb(110,168,255);font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;">Recomendado</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:4px;">
+          <span style="font-size:16px;font-weight:500;color:var(--text-light-muted);">R$</span>
+          <span style="font-size:44px;font-weight:500;line-height:44px;">299</span>
+          <span style="font-size:14px;color:var(--text-light-muted);">/mês</span>
+        </div>
+        <a href="#" class="btn btn-accent" onclick="return false" style="width:100%;"><span class="btn-fill" style="justify-content:center;">Começar agora</span></a>
+        <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px;">
+          <li style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-light-muted);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(40,199,101)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            5.000 conversas/mês
+          </li>
+          <li style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-light-muted);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(40,199,101)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            10 atendentes
+          </li>
+          <li style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-light-muted);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(40,199,101)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Assistente GPT + CRM Kanban
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <hr class="ds-divider ds-divider-dark">
+
+  <!-- COMPARISON -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Comparação</span>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:48px;">
+    <div style="background:rgba(255,255,255,0.03);border-radius:16px;padding:32px;">
+      <h4 style="font-size:28px;font-weight:600;line-height:33.6px;margin:0 0 24px;">Sem BotConversa</h4>
+      <ul class="comparison-list">
+        <li>
+          <span class="comparison-icon comparison-icon-x"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg></span>
+          WhatsApp bagunçado
+        </li>
+        <li>
+          <span class="comparison-icon comparison-icon-x"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg></span>
+          Lentidão no atendimento
+        </li>
+        <li>
+          <span class="comparison-icon comparison-icon-x"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg></span>
+          Trabalho manual
+        </li>
+        <li>
+          <span class="comparison-icon comparison-icon-x"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg></span>
+          Sem acompanhamento
+        </li>
+        <li>
+          <span class="comparison-icon comparison-icon-x"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg></span>
+          Equipe sobrecarregada
+        </li>
+      </ul>
+    </div>
+    <div style="background:rgba(48,131,255,0.06);border:1px solid rgba(48,131,255,0.15);border-radius:16px;padding:32px;">
+      <h4 style="font-size:28px;font-weight:600;line-height:33.6px;margin:0 0 24px;">Com BotConversa</h4>
+      <ul class="comparison-list">
+        <li>
+          <span class="comparison-icon comparison-icon-check"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span>
+          Serviço, vendas e suporte com IA
+        </li>
+        <li>
+          <span class="comparison-icon comparison-icon-check"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span>
+          Caixa de entrada centralizada e organizada
+        </li>
+        <li>
+          <span class="comparison-icon comparison-icon-check"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span>
+          Respostas automáticas 24/7
+        </li>
+        <li>
+          <span class="comparison-icon comparison-icon-check"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span>
+          Equipe focada em conversões
+        </li>
+        <li>
+          <span class="comparison-icon comparison-icon-check"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span>
+          Gestão completa em uma única plataforma
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <hr class="ds-divider ds-divider-dark">
+
+  <!-- FAQ ACCORDION -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">FAQ Accordion</span>
+  <div style="background:var(--page-bg);border-radius:20px;padding:40px;max-width:700px;">
+    <div style="display:flex;flex-direction:column;gap:12px;" id="faq-demo">
+      <div class="faq-item open">
+        <div class="faq-trigger" onclick="toggleFaq(this)">
+          <span>Existe uma versão gratuita?</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="faq-content">
+          <p>Sim. Nosso plano Free inclui projetos e tarefas limitados para que você possa testar a plataforma antes de fazer upgrade.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-trigger" onclick="toggleFaq(this)">
+          <span>Posso cancelar a qualquer momento?</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="faq-content">
+          <p>Claro! Você pode cancelar sua assinatura a qualquer momento, sem taxas ou penalidades.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-trigger" onclick="toggleFaq(this)">
+          <span>Quais integrações estão disponíveis?</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="faq-content">
+          <p>Oferecemos mais de 50 integrações nativas, incluindo RD Station, HubSpot, Shopify, ChatGPT, Gmail e muito mais.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     5) LAYOUT & SPACING
+     ══════════════════════════════════════════════════════════════ -->
+<section class="ds-section ds-section-light" id="layout">
+  <span class="ds-label">Layout</span>
+  <h2 class="ds-section-title" style="color: var(--text-heading);">Layout & Espaçamento</h2>
+  <p class="ds-section-subtitle" style="color: var(--text-muted);">Max-widths, gaps entre seções, e padrões de grid usados na landing page.</p>
+
+  <!-- Max-widths -->
+  <span class="ds-label" style="margin-top:16px;">Max-Widths</span>
+  <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:48px;">
+    <div style="max-width:850px;width:100%;margin:0 auto;">
+      <div class="layout-demo-box">max-width: 850px (Partners)</div>
+    </div>
+    <div style="max-width:1200px;width:100%;margin:0 auto;">
+      <div class="layout-demo-box">max-width: 1200px (Nav)</div>
+    </div>
+    <div style="max-width:1520px;width:100%;margin:0 auto;">
+      <div class="layout-demo-box">max-width: 1520px (Sections)</div>
+    </div>
+  </div>
+
+  <!-- Section Gaps -->
+  <span class="ds-label">Gaps entre Seções</span>
+  <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:48px;">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="spacing-bar" style="width:96px;height:32px;">96px</div>
+      <span style="font-size:13px;color:var(--text-muted);">Hero section gap</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="spacing-bar" style="width:64px;height:32px;">64px</div>
+      <span style="font-size:13px;color:var(--text-muted);">Features section gap</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="spacing-bar" style="width:40px;height:32px;">40px</div>
+      <span style="font-size:13px;color:var(--text-muted);">Pricing, Integrations gap</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="spacing-bar" style="width:32px;height:32px;">32px</div>
+      <span style="font-size:13px;color:var(--text-muted);">USP Minis gap</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="spacing-bar" style="width:24px;height:32px;">24px</div>
+      <span style="font-size:13px;color:var(--text-muted);">Partners, FAQ gap</span>
+    </div>
+  </div>
+
+  <!-- Hero Padding -->
+  <span class="ds-label">Hero Padding</span>
+  <div style="position:relative;border:2px dashed rgba(43,118,229,0.3);border-radius:12px;margin-bottom:48px;padding:0;">
+    <div style="background:rgba(43,118,229,0.06);padding:144px 64px 80px;border-radius:10px;text-align:center;position:relative;">
+      <div style="position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--blue-primary);font-family:monospace;">padding-top: 144px</div>
+      <div style="position:absolute;left:8px;top:50%;transform:translateY(-50%) rotate(-90deg);font-size:11px;font-weight:700;color:var(--blue-primary);font-family:monospace;">padding-left: 64px</div>
+      <div style="background:white;border-radius:8px;padding:24px;font-size:13px;font-weight:600;color:var(--blue-primary);">Hero Content Area</div>
+      <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--blue-primary);font-family:monospace;">padding-bottom: 80px</div>
+    </div>
+  </div>
+
+  <!-- Border Radii -->
+  <span class="ds-label">Border Radius</span>
+  <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:48px;">
+    <div style="width:80px;height:80px;background:rgba(43,118,229,0.1);border:2px solid var(--blue-primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--blue-primary);font-family:monospace;">8px</div>
+    <div style="width:80px;height:80px;background:rgba(43,118,229,0.1);border:2px solid var(--blue-primary);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--blue-primary);font-family:monospace;">16px</div>
+    <div style="width:80px;height:80px;background:rgba(43,118,229,0.1);border:2px solid var(--blue-primary);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--blue-primary);font-family:monospace;">20px</div>
+    <div style="width:80px;height:80px;background:rgba(43,118,229,0.1);border:2px solid var(--blue-primary);border-radius:21px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--blue-primary);font-family:monospace;">21px</div>
+    <div style="width:80px;height:80px;background:rgba(43,118,229,0.1);border:2px solid var(--blue-primary);border-radius:28px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--blue-primary);font-family:monospace;">28px</div>
+    <div style="width:80px;height:80px;background:rgba(43,118,229,0.1);border:2px solid var(--blue-primary);border-radius:40px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--blue-primary);font-family:monospace;">40px</div>
+  </div>
+
+  <!-- Bento Grid -->
+  <span class="ds-label">Bento Grid (Features)</span>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div class="layout-demo-box" style="grid-row:span 2;min-height:200px;">Card 1 — 642px × 632px</div>
+    <div class="layout-demo-box">Card 2 — 315px × 310px</div>
+    <div class="layout-demo-box">Card 3 — 315px × 310px</div>
+  </div>
+  <div style="font-size:12px;color:var(--text-muted);font-family:monospace;">grid-template-columns: 1fr 1fr &middot; gap: 12px</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     6) MOTION & ANIMATIONS
+     ══════════════════════════════════════════════════════════════ -->
+<section class="ds-section ds-section-dark" id="motion">
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Animações</span>
+  <h2 class="ds-section-title">Motion & Interações</h2>
+  <p class="ds-section-subtitle">Todas as animações e transições usadas na landing page.</p>
+
+  <!-- Scroll Fade-Up -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Scroll Fade-Up</span>
+  <div style="margin-bottom:48px;">
+    <div style="margin-bottom:16px;">
+      <button onclick="replayFadeUp()" style="background:var(--grad-cta-accent);color:white;border:none;padding:8px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Nunito Sans',sans-serif;">Replay Animação</button>
+    </div>
+    <div id="fade-demo" style="display:flex;flex-direction:column;gap:16px;">
+      <div class="ds-reveal revealed" style="background:rgba(255,255,255,0.05);border-radius:12px;padding:20px;transition-delay:0s;">
+        <span style="font-size:14px;">Elemento 1 — delay: 0s</span>
+      </div>
+      <div class="ds-reveal revealed" style="background:rgba(255,255,255,0.05);border-radius:12px;padding:20px;transition-delay:0.1s;">
+        <span style="font-size:14px;">Elemento 2 — delay: 0.1s</span>
+      </div>
+      <div class="ds-reveal revealed" style="background:rgba(255,255,255,0.05);border-radius:12px;padding:20px;transition-delay:0.2s;">
+        <span style="font-size:14px;">Elemento 3 — delay: 0.2s</span>
+      </div>
+    </div>
+    <div style="margin-top:12px;font-size:12px;color:rgba(255,255,255,0.4);font-family:monospace;">
+      from: opacity: 0; transform: translateY(20px); &rarr; to: opacity: 1; transform: none;<br>
+      transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    </div>
+  </div>
+
+  <hr class="ds-divider ds-divider-dark">
+
+  <!-- Dashboard Parallax -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Dashboard 3D Parallax</span>
+  <div style="margin-bottom:48px;perspective:1000px;max-width:600px;">
+    <div style="transform:perspective(1000px) translateY(-20px) scale(0.855) rotateX(14.5deg);border-radius:12px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,0.3);">
+      <img src="https://framerusercontent.com/images/4S6XRkW17Mv3vwVxkPsRTDo2fic.png?width=3838&height=1972" alt="Dashboard" style="width:100%;display:block;">
+    </div>
+    <div style="margin-top:16px;font-size:12px;color:rgba(255,255,255,0.4);font-family:monospace;">
+      transform: perspective(1000px) translateY(-58px) scale(0.855) rotateX(14.5deg);<br>
+      will-change: transform; (scroll-linked in production)
+    </div>
+  </div>
+
+  <hr class="ds-divider ds-divider-dark">
+
+  <!-- Partner Marquee -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Partner Marquee (Infinite Scroll)</span>
+  <div class="marquee-container" style="margin-bottom:48px;">
+    <div class="marquee-track">
+      <img src="https://framerusercontent.com/images/OPjeUJTDGsHMx3PbDOJoRhLdYw.png?width=100&height=100" alt="Nuvio">
+      <img src="https://framerusercontent.com/images/ZvXKsK53rZLOBhAs3pcGOzk2suo.png?width=100&height=100" alt="Klyra">
+      <img src="https://framerusercontent.com/images/CAGSvw7bZtJFY5ynouxW3RC2W0.png?width=100&height=100" alt="Knot">
+      <img src="https://framerusercontent.com/images/lnYQmAZQbqPcVzQfeJi0fb9Q.png?width=100&height=100" alt="Veltix">
+      <img src="https://framerusercontent.com/images/vhcID6SDeRTW7aKyOCFatlczQ8.png?width=100&height=100" alt="Partner 5">
+      <img src="https://framerusercontent.com/images/TMRVapgy4LVpILz6SRfNKYEpsw.png?width=100&height=100" alt="Partner 6">
+      <img src="https://framerusercontent.com/images/6lzSVDcaBK5aFUAKkW5VazbTK2U.png?width=100&height=100" alt="Partner 7">
+      <img src="https://framerusercontent.com/images/SXvNhwe0kFUGsQpzWI8xbuFnSuk.png?width=100&height=100" alt="Partner 8">
+      <!-- Duplicate for seamless loop -->
+      <img src="https://framerusercontent.com/images/OPjeUJTDGsHMx3PbDOJoRhLdYw.png?width=100&height=100" alt="Nuvio">
+      <img src="https://framerusercontent.com/images/ZvXKsK53rZLOBhAs3pcGOzk2suo.png?width=100&height=100" alt="Klyra">
+      <img src="https://framerusercontent.com/images/CAGSvw7bZtJFY5ynouxW3RC2W0.png?width=100&height=100" alt="Knot">
+      <img src="https://framerusercontent.com/images/lnYQmAZQbqPcVzQfeJi0fb9Q.png?width=100&height=100" alt="Veltix">
+      <img src="https://framerusercontent.com/images/vhcID6SDeRTW7aKyOCFatlczQ8.png?width=100&height=100" alt="Partner 5">
+      <img src="https://framerusercontent.com/images/TMRVapgy4LVpILz6SRfNKYEpsw.png?width=100&height=100" alt="Partner 6">
+      <img src="https://framerusercontent.com/images/6lzSVDcaBK5aFUAKkW5VazbTK2U.png?width=100&height=100" alt="Partner 7">
+      <img src="https://framerusercontent.com/images/SXvNhwe0kFUGsQpzWI8xbuFnSuk.png?width=100&height=100" alt="Partner 8">
+    </div>
+  </div>
+  <div style="font-size:12px;color:rgba(255,255,255,0.4);font-family:monospace;margin-bottom:48px;">
+    @keyframes marqueeScroll { from { translateX(0) } to { translateX(-50%) } }<br>
+    animation: marqueeScroll 25s linear infinite;<br>
+    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  </div>
+
+  <hr class="ds-divider ds-divider-dark">
+
+  <!-- Wipe Reveal -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Wipe Reveal Gradient</span>
+  <div style="position:relative;height:120px;border-radius:12px;overflow:hidden;margin-bottom:48px;">
+    <div style="position:absolute;inset:0;background:rgb(48,131,255);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;">Conteúdo abaixo do wipe</div>
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg, rgba(10,10,10,0) 43%, rgb(10,10,10) 57%);pointer-events:none;"></div>
+  </div>
+  <div style="font-size:12px;color:rgba(255,255,255,0.4);font-family:monospace;margin-bottom:48px;">
+    background: linear-gradient(180deg, rgba(10,10,10,0) 43%, rgb(10,10,10) 57%);<br>
+    Scroll-linked translateY for progressive reveal
+  </div>
+
+  <hr class="ds-divider ds-divider-dark">
+
+  <!-- Button Hover -->
+  <span class="ds-label" style="color:rgba(255,255,255,0.45);">Button Hover States</span>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:48px;">
+    <a href="#" class="btn btn-accent" onclick="return false" style="transition:transform 0.2s,opacity 0.2s;"><span class="btn-fill">Comece agora</span></a>
+    <a href="#" class="btn btn-dark" onclick="return false" style="transition:transform 0.2s,opacity 0.2s;"><span class="btn-fill">Vamos começar</span></a>
+    <a href="#" class="btn btn-outline" onclick="return false" style="transition:border-color 0.2s,opacity 0.2s;">Hover me</a>
+  </div>
+  <div style="font-size:12px;color:rgba(255,255,255,0.4);font-family:monospace;">
+    :hover { opacity: 0.92 } &middot; :active { transform: scale(0.97) }
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     7) IMAGES & ASSETS
+     ══════════════════════════════════════════════════════════════ -->
+<section class="ds-section ds-section-light" id="images">
+  <span class="ds-label">Imagens</span>
+  <h2 class="ds-section-title" style="color: var(--text-heading);">Catálogo de Imagens & Assets</h2>
+  <p class="ds-section-subtitle" style="color: var(--text-muted);">Todas as imagens usadas na landing page, hospedadas no CDN do Framer (framerusercontent.com).</p>
+
+  <!-- Dashboard & App -->
+  <span class="ds-label" style="margin-top:16px;">Dashboard & App Screenshots</span>
+  <div class="img-grid" style="margin-bottom:40px;">
+    <div class="img-card">
+      <div class="img-card-preview">
+        <img src="https://framerusercontent.com/images/4S6XRkW17Mv3vwVxkPsRTDo2fic.png?width=3838&height=1972" alt="Dashboard BotConversa" loading="lazy">
+      </div>
+      <div class="img-card-info">
+        <div class="img-card-alt">Dashboard BotConversa</div>
+        <div class="img-card-dims">3838 × 1972 px</div>
+      </div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview">
+        <img src="https://framerusercontent.com/images/zo3WxU6EOiy37HQUcUU9VDivEg.png?scale-down-to=1024&width=2292&height=1893" alt="Mobile app preview" loading="lazy">
+      </div>
+      <div class="img-card-info">
+        <div class="img-card-alt">Mobile App Preview</div>
+        <div class="img-card-dims">2292 × 1893 px</div>
+      </div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview">
+        <img src="https://framerusercontent.com/images/loh34ssNDvMAWCm3K6nEke7PBs.png?scale-down-to=1024&width=1209&height=749" alt="Mobile app preview 2" loading="lazy">
+      </div>
+      <div class="img-card-info">
+        <div class="img-card-alt">Mobile App Preview 2</div>
+        <div class="img-card-dims">1209 × 749 px</div>
+      </div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview">
+        <img src="https://framerusercontent.com/images/uH0qDq1bczhWugt7xyTxN28XI.png?width=1920&height=676" alt="Feature banner" loading="lazy">
+      </div>
+      <div class="img-card-info">
+        <div class="img-card-alt">Feature Banner</div>
+        <div class="img-card-dims">1920 × 676 px</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Partner Logos -->
+  <span class="ds-label">Logos de Parceiros</span>
+  <div class="img-grid" style="margin-bottom:40px;">
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/OPjeUJTDGsHMx3PbDOJoRhLdYw.png?width=100&height=100" alt="Nuvio" loading="lazy" style="width:60px;height:60px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Nuvio</div><div class="img-card-dims">100 × 100 px</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/ZvXKsK53rZLOBhAs3pcGOzk2suo.png?width=100&height=100" alt="Klyra" loading="lazy" style="width:60px;height:60px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Klyra</div><div class="img-card-dims">100 × 100 px</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/CAGSvw7bZtJFY5ynouxW3RC2W0.png?width=100&height=100" alt="Knot" loading="lazy" style="width:60px;height:60px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Knot</div><div class="img-card-dims">100 × 100 px</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/lnYQmAZQbqPcVzQfeJi0fb9Q.png?width=100&height=100" alt="Veltix" loading="lazy" style="width:60px;height:60px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Veltix</div><div class="img-card-dims">100 × 100 px</div></div>
+    </div>
+  </div>
+
+  <!-- Integration Icons -->
+  <span class="ds-label">Ícones de Integração</span>
+  <div class="img-grid" style="margin-bottom:40px;">
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/tcYcfZU0KiHyWUIlKBodREdG0JU.webp?width=641&height=641" alt="Integration 1" loading="lazy" style="width:48px;height:48px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Integration Icon</div><div class="img-card-dims">641 × 641 px (WebP)</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/6sXYP7wkQkGothQELn3EZT9vKXw.webp?width=641&height=641" alt="Integration 2" loading="lazy" style="width:48px;height:48px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Integration Icon</div><div class="img-card-dims">641 × 641 px (WebP)</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/DpZl48cAeufhOYpFsTrMZ0yY9c.webp?width=641&height=641" alt="Integration 3" loading="lazy" style="width:48px;height:48px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Integration Icon</div><div class="img-card-dims">641 × 641 px (WebP)</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/8KhtufI4hyjAJtKjkrBiQtlWQsc.webp?width=641&height=641" alt="Integration 4" loading="lazy" style="width:48px;height:48px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Integration Icon</div><div class="img-card-dims">641 × 641 px (WebP)</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/NedGEX7rwwijLH3DI5jv1xB1Mo.webp?width=641&height=641" alt="Integration 5" loading="lazy" style="width:48px;height:48px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Integration Icon</div><div class="img-card-dims">641 × 641 px (WebP)</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/EZJ9jROj97CrAiQI2sWWsaXKtYU.webp?width=641&height=641" alt="Integration 6" loading="lazy" style="width:48px;height:48px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Integration Icon</div><div class="img-card-dims">641 × 641 px (WebP)</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/ONF5WN6dlR6Ios0Dxj2L3xriGk.webp?width=641&height=641" alt="Integration 7" loading="lazy" style="width:48px;height:48px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Integration Icon</div><div class="img-card-dims">641 × 641 px (WebP)</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/NIAvlUJyBhVw7TY30yLyh9RrUuI.webp?width=641&height=641" alt="Integration 8" loading="lazy" style="width:48px;height:48px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Integration Icon</div><div class="img-card-dims">641 × 641 px (WebP)</div></div>
+    </div>
+  </div>
+
+  <!-- Comparison & CTA Images -->
+  <span class="ds-label">Comparison & Decorativas</span>
+  <div class="img-grid" style="margin-bottom:40px;">
+    <div class="img-card">
+      <div class="img-card-preview"><img src="https://framerusercontent.com/images/FFd6G2npZFxZxSJiA7yII6vBlGM.png?width=762&height=609" alt="Comparison 1" loading="lazy"></div>
+      <div class="img-card-info"><div class="img-card-alt">Comparison Screenshot 1</div><div class="img-card-dims">762 × 609 px</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview"><img src="https://framerusercontent.com/images/WoTVjIbjdW5iQQJPKhF9eiEn10.png?width=762&height=609" alt="Comparison 2" loading="lazy"></div>
+      <div class="img-card-info"><div class="img-card-alt">Comparison Screenshot 2</div><div class="img-card-dims">762 × 609 px</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview"><img src="https://framerusercontent.com/images/zqhgN3PVfzbqecQwtwaBJ5c3YX0.png?width=1200&height=540" alt="CTA Background Lines" loading="lazy"></div>
+      <div class="img-card-info"><div class="img-card-alt">CTA Converging Lines</div><div class="img-card-dims">1200 × 540 px</div></div>
+    </div>
+  </div>
+
+  <!-- Brand Assets -->
+  <span class="ds-label">Brand Assets</span>
+  <div class="img-grid" style="margin-bottom:40px;">
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/QLVftwtVExxNtJ6bzAQrXEl6s.png?width=352&height=352" alt="BotConversa Logo" loading="lazy" style="width:80px;height:80px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">BotConversa Icon</div><div class="img-card-dims">352 × 352 px</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/w4JhmCBii3bTzhGgwrKTytKEJo4.png?width=512&height=512" alt="WhatsApp Logo" loading="lazy" style="width:60px;height:60px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">WhatsApp Logo</div><div class="img-card-dims">512 × 512 px</div></div>
+    </div>
+    <div class="img-card">
+      <div class="img-card-preview" style="background:#f8f8f8;"><img src="https://framerusercontent.com/images/CdiOptcCBH5r1laKPCRtmX6Us4.png?width=200&height=200" alt="Brand Asset" loading="lazy" style="width:60px;height:60px;object-fit:contain;margin:auto;"></div>
+      <div class="img-card-info"><div class="img-card-alt">Brand Asset</div><div class="img-card-dims">200 × 200 px</div></div>
+    </div>
+  </div>
+
+  <!-- Testimonial Avatars -->
+  <span class="ds-label">Avatares de Depoimentos</span>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:40px;">
+    <img src="https://framerusercontent.com/images/M53lpR5S6cgoswGdTYT86Ij6nc.jpg?width=3149&height=4724" alt="Avatar 1" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+    <img src="https://framerusercontent.com/images/QxTFT68PE8L929VQ9Mll7tpgpgo.jpg?width=3322&height=4983" alt="Avatar 2" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+    <img src="https://framerusercontent.com/images/kGbwa4d6dl3T9qSyfhfxB8oHqp4.jpg?width=3840&height=5760" alt="Avatar 3" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+    <img src="https://framerusercontent.com/images/8Jn5qLMLTytLPUwhB66qjkX4oKs.jpg?width=3648&height=5472" alt="Avatar 4" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+    <img src="https://framerusercontent.com/images/SxzTLiNEeuCPxt7HTFNnCyB5Vo.jpg?width=2667&height=4000" alt="Avatar 5" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+    <img src="https://framerusercontent.com/images/M9p05L1XwWjDwvfbC4ymHkfbGw.jpg?width=3648&height=5472" alt="Avatar 6" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+    <img src="https://framerusercontent.com/images/Woc5c0RaQoMSZuEg7HMh10yuXi8.jpg?width=3985&height=5184" alt="Avatar 7" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+    <img src="https://framerusercontent.com/images/LkVs6m8J7IRfGUcsxZd8TOthBCo.jpg?width=5760&height=3840" alt="Avatar 8" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+    <img src="https://framerusercontent.com/images/6IwDEvyEz7aIpbO3RHe6eiLaqKw.jpg?width=4016&height=6016" alt="Avatar 9" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+    <img src="https://framerusercontent.com/images/jwFxU6e0ojmk8GkSNOX3VUJIoI.jpg?width=4096&height=2726" alt="Avatar 10" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+    <img src="https://framerusercontent.com/images/lXBgXwJoGTVFOIXs8UNvrMr3s.jpg?width=1080&height=1433" alt="Avatar 11" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     FOOTER
+     ══════════════════════════════════════════════════════════════ -->
+<footer style="background:var(--dark-1);padding:48px 40px;text-align:center;">
+  <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px;">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+      <g transform="translate(0 0.5)">
+        <path d="M 2.184 14.049 C 2.184 9.686 5.725 6.148 10.094 6.148 L 16.09 6.148 C 20.458 6.148 24 9.686 24 14.049 C 24 18.412 20.458 21.949 16.09 21.949 L 10.094 21.949 C 5.726 21.949 2.184 18.412 2.184 14.049 Z" fill="rgb(48,131,255)"/>
+        <path d="M 2.218 0 C 3.443 0 4.436 0.992 4.436 2.215 L 4.436 13.881 L 0 13.881 L 0 2.215 C 0 0.992 0.993 0 2.218 0 Z" fill="rgb(40,199,101)"/>
+        <path d="M 12.529 13.916 C 12.529 15.14 11.547 16.132 10.335 16.132 C 9.123 16.132 8.141 15.14 8.141 13.917 C 8.141 12.693 9.123 11.701 10.335 11.701 C 11.547 11.701 12.529 12.693 12.529 13.916 Z M 19.475 13.916 C 19.475 15.14 18.493 16.132 17.281 16.132 C 16.07 16.132 15.088 15.14 15.088 13.917 C 15.088 12.693 16.07 11.701 17.281 11.701 C 18.493 11.701 19.475 12.693 19.475 13.916 Z" fill="rgb(255,255,255)"/>
+        <path d="M 0 13.884 C 0 8.299 4.53 3.768 10.122 3.768 L 11.311 3.768 C 12.11 3.758 12.853 4.178 13.256 4.867 C 13.659 5.557 13.659 6.41 13.256 7.1 C 12.853 7.789 12.11 8.209 11.311 8.199 L 10.122 8.199 C 6.983 8.199 4.436 10.742 4.436 13.884 C 4.436 17.025 6.983 19.57 10.123 19.57 L 15.869 19.57 C 16.669 19.559 17.412 19.979 17.815 20.668 C 18.218 21.358 18.218 22.211 17.815 22.901 C 17.412 23.591 16.669 24.01 15.869 24 L 10.122 24 C 4.531 24 0 19.469 0 13.884 Z" fill="rgb(40,199,101)"/>
+      </g>
+    </svg>
+    <span style="color:var(--text-white);font-size:14px;font-weight:700;">BotConversa</span>
+  </div>
+  <p style="color:rgba(255,255,255,0.4);font-size:13px;margin:0;">
+    Design System extraído de <a href="https://botconversa.framer.website/pt/" target="_blank" style="color:var(--blue-light);text-decoration:none;">botconversa.framer.website/pt</a>
+  </p>
+</footer>
+
+<!-- ══════════════════════════════════════════════════════════════
+     JAVASCRIPT
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+  // ── FAQ Accordion ──
+  function toggleFaq(trigger) {
+    const item = trigger.parentElement;
+    const isOpen = item.classList.contains('open');
+    // Close all
+    document.querySelectorAll('#faq-demo .faq-item').forEach(i => i.classList.remove('open'));
+    // Toggle current
+    if (!isOpen) item.classList.add('open');
+  }
+
+  // ── Fade-Up Replay ──
+  function replayFadeUp() {
+    const items = document.querySelectorAll('#fade-demo .ds-reveal');
+    items.forEach(el => el.classList.remove('revealed'));
+    setTimeout(() => {
+      items.forEach((el, i) => {
+        setTimeout(() => el.classList.add('revealed'), i * 120);
+      });
+    }, 50);
+  }
+
+  // ── Scroll Reveal (IntersectionObserver) ──
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('revealed');
+      }
+    });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.ds-reveal:not(#fade-demo .ds-reveal)').forEach(el => {
+    revealObserver.observe(el);
+  });
+
+  // ── Nav Scroll Effect ──
+  const nav = document.getElementById('ds-nav');
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 50) {
+      nav.classList.add('scrolled');
+    } else {
+      nav.classList.remove('scrolled');
+    }
+  }, { passive: true });
+
+  // ── Nav Active Section Tracking ──
+  const sections = document.querySelectorAll('section[id], .hero[id]');
+  const navLinks = document.querySelectorAll('.ds-nav-links a');
+  const sectionObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(link => {
+          link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(sec => sectionObserver.observe(sec));
+</script>
+
+</body>
+</html>
