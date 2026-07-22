@@ -1,0 +1,42 @@
+[project]
+name = "bc-sheet-processor"
+version = "0.2.3"
+description = "System to adjust the contact sheet before importing into the BotConversa system"
+authors = [
+    {name = "Renan Clemonini",email = "rclemon93@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "aiofiles (==23.2.1)",
+    "annotated-types (==0.7.0)",
+    "anyio (==3.7.1)",
+    "click (==8.3.1)",
+    "colorama (==0.4.6)",
+    "et-xmlfile (==2.0.0)",
+    "fastapi (==0.104.1)",
+    "h11 (==0.16.0)",
+    "httptools (==0.7.1)",
+    "idna (==3.11)",
+    "jinja2 (==3.1.2)",
+    "markupsafe (==3.0.3)",
+    "openpyxl (==3.1.2)",
+    "pydantic (==2.12.5)",
+    "pydantic-core (==2.41.5)",
+    "python-dotenv (==1.2.1)",
+    "python-multipart (==0.0.6)",
+    "pyyaml (==6.0.3)",
+    "redis (==7.1.0)",
+    "sniffio (==1.3.1)",
+    "starlette (==0.27.0)",
+    "typing-inspection (==0.4.2)",
+    "typing-extensions (==4.15.0)",
+    "uvicorn (==0.24.0)",
+    "watchfiles (==1.1.1)",
+    "websockets (==15.0.1)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

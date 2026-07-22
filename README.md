@@ -5,7 +5,7 @@ Excel spreadsheet processing system for normalizing BotConversa contact data.
 ## 🚀 Quick Start
 ```bash
 # Clone the repository
-git clone https://github.com/renanclemonini/bc_sheet_processor.git
+git clone https://github.com/renanclemonini/bc_sheet_processor_v2.git bc_sheet_processor
 cd bc_sheet_processor
 
 # Build and start the application

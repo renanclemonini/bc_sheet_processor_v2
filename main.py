@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from openpyxl import Workbook, load_workbook
+import unicodedata
 
 app = FastAPI(title="Processador de Excel - BotConversa")
 
@@ -189,6 +190,7 @@ async def download_arquivo(job_id: str):
 
     # Nome do arquivo
     nome_arquivo = job.get("nome_arquivo", "arquivo_processado.xlsx")
+    nome_arquivo = unicodedata.normalize('NFKD', nome_arquivo).encode('ascii', 'ignore').decode('ascii')
 
     print(f"[DOWNLOAD] Iniciando download de: {nome_arquivo}")
 
@@ -197,10 +199,6 @@ async def download_arquivo(job_id: str):
         path=caminho,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=nome_arquivo,
-        headers={
-            "Content-Disposition": f'attachment; filename="{nome_arquivo}"',
-            "Content-Length": str(tamanho),
-        },
     )
 
 
@@ -392,6 +390,7 @@ def processar_excel_background(arquivo_entrada: str, job_id: str, nome_original:
 
         # Define nome e caminho do arquivo de saída
         nome_base = os.path.splitext(nome_original)[0]
+        nome_base = unicodedata.normalize('NFKD', nome_base).encode('ascii', 'ignore').decode('ascii')
         nome_saida = f"{nome_base}_{uuid4()}.xlsx"
         caminho_saida = os.path.abspath(os.path.join("output", nome_saida))
 
