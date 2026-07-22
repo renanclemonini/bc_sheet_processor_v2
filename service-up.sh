@@ -14,8 +14,6 @@ docker compose down
 
 # Sobe os containers
 echo -e "${GREEN}🚀 Subindo os containers...${NC}"
-docker compose up -d --build
+docker compose up -d
 
-sleep 3
-
-echo -e "${GREEN}✅ Setup concluído! Mostrando logs...${NC}\n"
+echo -e "${GREEN}✅ Setup concluído! Serviço online ${NC}\n"
