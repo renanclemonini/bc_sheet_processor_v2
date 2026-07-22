@@ -17,6 +17,7 @@ import unicodedata
 app = FastAPI(title="Processador de Excel - BotConversa")
 
 app.mount("/img", StaticFiles(directory="templates/img"), name="images")
+app.mount("/templates", StaticFiles(directory="templates"), name="templates-static")
 
 # Configurações
 templates = Jinja2Templates(directory="templates")
