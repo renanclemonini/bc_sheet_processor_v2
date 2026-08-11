@@ -250,7 +250,7 @@ def processar_excel_background(arquivo_entrada: str, job_id: str, nome_original:
                 colunas_str = ", ".join(s for s in headers if s) or "(nenhuma coluna com nome encontrada)"
                 raise ValueError(
                     "Formato de planilha não reconhecido."
-                    # f"\n\nColunas encontradas: {colunas_str}."
+                    f"\n\nColunas encontradas: {colunas_str}."
                 )
 
             linhas_em_branco = 0
