@@ -315,7 +315,7 @@ def processar_excel_background(arquivo_entrada: str, job_id: str, nome_original:
                 # Processa etiquetas
                 for col in ["etiquetas", "etiqueta", "tag"]:
                     if col in idx and len(row) > idx[col]:
-                        etiqueta_padrao = "NomeConfirmado"
+                        etiqueta_padrao = ""
                         val = str(row[idx[col]] or "").strip()
                         etiquetas = (
                             f"{val}, {etiqueta_padrao}"
