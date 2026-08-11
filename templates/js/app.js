@@ -141,12 +141,12 @@ async function pollStatus(jobId) {
                 downloadFile(jobId);
             }, 500);
         } else if (data.status === 'error') {
-            throw { type: 'http', message: data.error || 'Erro no processamento' };
+            throw { type: 'http', message: data.error || 'Erro no processamento', colunas: data.colunas_encontradas };
         }
     } catch (error) {
         progressContainer.style.display = 'none';
         submitBtn.disabled = false;
-        showError(error.message || 'Erro ao verificar status');
+        showError(error.message || 'Erro ao verificar status', null, error.colunas);
     }
 }
 
@@ -169,6 +169,10 @@ function showResults(data) {
             <span>Linhas em branco removidas:</span>
             <strong>${resultado.linhas_em_branco}</strong>
         </div>
+        <div class="result-item">
+            <span>Colunas encontradas:</span>
+            <strong>${(resultado.colunas_encontradas || []).filter(c => c).join(', ')}</strong>
+        </div>
     `;
     resultContainer.style.display = 'block';
     submitBtn.disabled = false;
@@ -183,8 +187,13 @@ function downloadFile(jobId) {
     document.body.removeChild(link);
 }
 
-function showError(message, onRetry) {
-    errorContainer.innerHTML = `❌ Erro: ${message}`;
+function showError(message, onRetry, colunas) {
+    let html = `❌ Erro: ${message}`;
+    const colunasEncontradas = Array.isArray(colunas) ? colunas.filter(c => c) : [];
+    if (colunasEncontradas.length > 0) {
+        html += `<div style="margin-top: 8px; font-size: 13px; color: #b33">Colunas encontradas: ${colunasEncontradas.join(', ')}</div>`;
+    }
+    errorContainer.innerHTML = html;
     if (onRetry) {
         const btn = document.createElement('button');
         btn.className = 'retry-btn';

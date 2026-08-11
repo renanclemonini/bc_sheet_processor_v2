@@ -216,6 +216,8 @@ def processar_excel_background(arquivo_entrada: str, job_id: str, nome_original:
     try:
         print(f"[{job_id}] Iniciando processamento de {nome_original}")
 
+        headers = []
+
         # Lê o arquivo Excel com data_only=True para ignorar fórmulas e usar valores calculados
         with open(arquivo_entrada, "rb") as f:
             wb = load_workbook(f, data_only=True)
@@ -245,8 +247,10 @@ def processar_excel_background(arquivo_entrada: str, job_id: str, nome_original:
             ).issubset(set(headers))
 
             if not padrao_3_colunas and not padrao_4_colunas:
+                colunas_str = ", ".join(s for s in headers if s) or "(nenhuma coluna com nome encontrada)"
                 raise ValueError(
-                    "Formato de planilha não reconhecido. Colunas necessárias não encontradas."
+                    "Formato de planilha não reconhecido."
+                    # f"\n\nColunas encontradas: {colunas_str}."
                 )
 
             linhas_em_branco = 0
@@ -470,6 +474,7 @@ def processar_excel_background(arquivo_entrada: str, job_id: str, nome_original:
         set_job_status(job_id, {
             "status": "error",
             "error": str(e),
+            "colunas_encontradas": headers,
             "arquivo_original": nome_original,
             "progresso": 0,
         })
