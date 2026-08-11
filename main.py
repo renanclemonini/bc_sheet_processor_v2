@@ -280,7 +280,7 @@ def processar_excel_background(arquivo_entrada: str, job_id: str, nome_original:
                 primeiro_nome = ""
                 sobrenome = ""
                 telefone = ""
-                etiquetas = "NomeConfirmado"
+                etiquetas = ""
 
                 # Processa nome (padrão 3 colunas: nome completo em uma coluna)
                 if padrao_3_colunas:
