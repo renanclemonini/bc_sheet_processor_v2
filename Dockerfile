@@ -1,3 +1,4 @@
+# Dockerfile for bc_sheet_processor
 FROM python:3.13.14-alpine3.24
 
 SHELL ["/bin/ash", "-o", "pipefail", "-c"]
