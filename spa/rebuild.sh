@@ -2,7 +2,7 @@
 
 echo "🚀 Iniciando deploy..."
 
-cd ~/bc_sheet_processor
+cd "$(dirname "$0")/.."
 
 ANTES=$(git rev-parse HEAD)
 git pull origin main

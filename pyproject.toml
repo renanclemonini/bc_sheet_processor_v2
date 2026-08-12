@@ -33,7 +33,9 @@ dependencies = [
     "typing-extensions (==4.15.0)",
     "uvicorn (==0.24.0)",
     "watchfiles (==1.1.1)",
-    "websockets (==15.0.1)"
+    "websockets (==15.0.1)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "user-agents (>=2.2.0,<3.0.0)"
 ]
 
 

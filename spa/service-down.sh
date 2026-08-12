@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd "$(dirname "$0")/.."
+
 # Cores para output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'

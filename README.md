@@ -64,14 +64,20 @@ http://localhost:8000
 
 ### Useful commands
 ```bash
+# Up/start service
+./spa/service-up.sh
+
+# Stop service
+./spa/service-down.sh
+
+# Deploy/rebuild (git pull + build)
+./spa/rebuild.sh
+
+# Full deploy
+./spa/deploy.sh
+
 # View logs
-docker-compose logs -f
-
-# Stop
-docker-compose down
-
-# Restart
-docker-compose restart
+./spa/logs.sh
 
 # Access container shell
 docker-compose exec sheet-processor bash
@@ -80,11 +86,29 @@ docker-compose exec sheet-processor bash
 ## 📂 Folder Structure
 ```
 bc_sheet_processor/
-├── main.py              # FastAPI application
+├── bcsheetsprocessor/   # Application package
+│   ├── main.py          # FastAPI app (entry point)
+│   ├── config.py        # Paths, templates and executor
+│   ├── route/           # API routes (APIRouter)
+│   │   ├── page_route.py    # GET /, GET /debug/headers
+│   │   ├── upload_route.py  # POST /upload
+│   │   └── result_route.py  # GET /status/{job_id}, GET /download/{job_id}
+│   ├── controller/      # Request handling logic
+│   │   ├── upload_controller.py
+│   │   ├── status_controller.py
+│   │   └── download_controller.py
+│   ├── schema/          # Pydantic models and typed structures
+│   │   ├── job.py
+│   │   └── upload.py
+│   └── service/         # Business logic (Excel processing, job status)
+│       ├── job_service.py
+│       └── excel_service.py
 ├── requirements.txt     # Python dependencies
 ├── Dockerfile          # Docker configuration
 ├── docker-compose.yml  # Docker orchestration
 ├── .dockerignore       # Files ignored in build
+├── entrypoint.sh       # Docker container entrypoint (referenced by Dockerfile)
+├── spa/                # Operation scripts (deploy, logs, up/down, rebuild)
 ├── templates/          # HTML templates
 │   └── index.html     # Upload interface
 ├── uploads/           # Temporary files (auto-created)
