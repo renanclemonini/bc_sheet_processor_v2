@@ -489,6 +489,11 @@ def processar_excel_background(arquivo_entrada: str, job_id: str, nome_original:
                 print(f"[{job_id}] Erro ao remover temporário: {str(e)}")
 
 
+@app.get("/debug/headers")
+async def debug_headers(request: Request):
+    return dict(request.headers)
+
+
 if __name__ == "__main__":
     import uvicorn
 
