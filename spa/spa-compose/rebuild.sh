@@ -2,7 +2,7 @@
 
 echo "🚀 Iniciando deploy..."
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 
 ANTES=$(git rev-parse HEAD)
 git pull origin main

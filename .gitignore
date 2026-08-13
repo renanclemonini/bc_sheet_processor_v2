@@ -5,3 +5,4 @@ output/
 uploads/
 *-mcp/
 .env
+*.txt

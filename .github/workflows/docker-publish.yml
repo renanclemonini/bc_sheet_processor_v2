@@ -1,0 +1,55 @@
+name: Build and Push to GHCR
+
+on:
+  push:
+    branches: [main, docker-swarm-migration]
+    # docker-swarm-migration: temporário — necessário enquanto o deploy de
+    # produção for feito direto dessa branch. Remover após merge em main.
+    # Só rebuilda se algo relevante para a imagem mudou (evita build
+    # desnecessário quando só o README ou docs mudam)
+    paths-ignore:
+      - "README.md"
+      - "refatoracao-by-ia/**"
+      - ".playwright-mcp/**"
+
+permissions:
+  contents: read
+  packages: write   # necessário para publicar em ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extrair metadata (tags)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # Nome fixo (não usa ${{ github.repository }} — o repositório GitHub
+          # é bc_sheet_processor_v2, mas a imagem é publicada como
+          # bc-sheet-processor, nome documentado no stack file).
+          images: ghcr.io/renanclemonini/bc-sheet-processor
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix={{branch}}-,format=short
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            USERNAME=bcsheetprocessor
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
