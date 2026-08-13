@@ -33,7 +33,7 @@ if echo "$ARQUIVOS_ALTERADOS" | grep -qv '^templates/'; then
     # TAG imutável automática (mesmo padrão do workflow); override manual
     # continua válido: export TAG=main-<sha>
     if [ -z "${TAG:-}" ]; then
-        TAG="$(git branch --show-current)-$(git rev-parse --short HEAD)"
+        export TAG="$(git branch --show-current)-$(git rev-parse --short HEAD)"
     fi
     echo "🔖 Publicando imagem: ghcr.io/renanclemonini/bc-sheet-processor:${TAG}"
 
