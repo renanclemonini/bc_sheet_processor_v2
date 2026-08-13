@@ -63,25 +63,80 @@ http://localhost:8000
 ```
 
 ### Useful commands
+
+**Produção (Docker Swarm) — scripts em `spa/spa-swarm/`:**
 ```bash
-# Up/start service
-./spa/service-up.sh
+# Preparar o host (idempotente): swarm init + label + cria /srv (sudo) +
+# cria os secrets a partir do .env (somente leitura — nunca edita o .env)
+./spa/spa-swarm/swarm-init.sh
 
-# Stop service
-./spa/service-down.sh
+# Up/start service (docker stack deploy, com pré-flight e falha rápida)
+./spa/spa-swarm/service-up.sh
 
-# Deploy/rebuild (git pull + build)
-./spa/rebuild.sh
+# Deploy (git pull + docker stack deploy com tag imutável automática)
+./spa/spa-swarm/deploy.sh
 
-# Full deploy
-./spa/deploy.sh
+# Rebuild quando o push já publicou nova imagem no GHCR; rsync de templates/
+./spa/spa-swarm/rebuild.sh
+
+# Smoke test pós-deploy (2 uploads → status → download; gera eventos no n8n)
+./spa/spa-swarm/smoke-test.sh
+
+# Stop service (docker stack rm)
+./spa/spa-swarm/service-down.sh
+
+# Desmontar tudo: stack rm + swarm leave --force
+./spa/spa-swarm/swarm-leave.sh
 
 # View logs
-./spa/logs.sh
-
-# Access container shell
-docker-compose exec sheet-processor bash
+./spa/spa-swarm/logs.sh
 ```
+
+**Desenvolvimento local (Docker Compose) — scripts em `spa/spa-compose/`:**
+```bash
+./spa/spa-compose/service-up.sh
+./spa/spa-compose/logs.sh
+```
+
+### Operation — Docker Swarm (produção)
+
+A imagem é publicada automaticamente em `ghcr.io/renanclemonini/bc-sheet-processor`
+pelo workflow `.github/workflows/docker-publish.yml` a cada push em `main`
+(ou `docker-swarm-migration` durante a migração). Tags: `latest` + `<branch>-<sha>`.
+
+Primeiro deploy em um host novo (1 nó):
+```bash
+# 1. Swarm init + label + /srv + secrets (idempotente). Tudo automático:
+#    cria /srv/bc-sheet-processor (sudo) e os secrets bcsp_* a partir do .env.
+#    Se algo falhar (ex.: sudo sem TTY), mostra o comando manual exato.
+./spa/spa-swarm/swarm-init.sh
+
+# 2. Deploy do stack (serviço: bc_sheets_processor_swarm_sheet-processor)
+./spa/spa-swarm/deploy.sh
+
+# 3. (Opcional) Validação pós-deploy
+./spa/spa-swarm/smoke-test.sh
+```
+
+Secrets criados (prefixo `bcsp_` isola no swarm):
+`bcsp_redis_url`, `bcsp_n8n_webhook_user`, `bcsp_n8n_webhook_password` —
+criados pelo `swarm-init.sh` a partir do `.env` (leitura; o `.env` nunca é
+modificado pelo script).
+
+Deploys futuros (rollback preciso numa tag imutável): a tag
+`<branch>-<sha>` é calculada automaticamente após o git pull; override
+manual continua válido:
+```bash
+export TAG=main-<sha>
+./spa/spa-swarm/deploy.sh
+```
+
+Rollback manual: `docker service rollback bc_sheets_processor_swarm_sheet-processor`
+
+Restrições do setup 1 nó: bind mounts locais em `/srv/bc-sheet-processor`
+(exigem a constraint de placement `node.labels.app`), downtime breve a cada
+deploy (`mode: host` + `replicas: 1`, ordem `stop-first`) e rollback automático
+via healthcheck (`failure_action: rollback`).
 
 ## 📂 Folder Structure
 ```
@@ -109,7 +164,7 @@ bc_sheet_processor/
 ├── .dockerignore       # Files ignored in build
 ├── entrypoint.sh       # Docker container entrypoint (referenced by Dockerfile)
 ├── run.py              # Launcher: decide workers based on Redis availability
-├── spa/                # Operation scripts (deploy, logs, up/down, rebuild)
+├── spa/                # Operation scripts — spa-swarm/ (produção Swarm) e spa-compose/ (dev local)
 ├── templates/          # HTML templates
 │   └── index.html     # Upload interface
 ├── uploads/           # Temporary files (auto-created)

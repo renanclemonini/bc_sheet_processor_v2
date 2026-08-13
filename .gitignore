@@ -5,3 +5,6 @@ output/
 uploads/
 *-mcp/
 .env
+bcsheetsprocessor.txt
+migracao-docker-swarm.txt
+migracao-docker-swarm-doc.txt
