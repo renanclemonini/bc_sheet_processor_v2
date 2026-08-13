@@ -11,7 +11,6 @@ async def index(request: Request):
     """Página principal com formulário de upload"""
     return templates.TemplateResponse("index.html", {"request": request})
 
-
-@router.get("/debug/headers")
-async def debug_headers(request: Request):
-    return dict(request.headers)
+# @router.get("/debug/headers")
+# async def debug_headers(request: Request):
+#     return dict(request.headers)

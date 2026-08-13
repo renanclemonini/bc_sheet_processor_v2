@@ -108,6 +108,7 @@ bc_sheet_processor/
 ├── docker-compose.yml  # Docker orchestration
 ├── .dockerignore       # Files ignored in build
 ├── entrypoint.sh       # Docker container entrypoint (referenced by Dockerfile)
+├── run.py              # Launcher: decide workers based on Redis availability
 ├── spa/                # Operation scripts (deploy, logs, up/down, rebuild)
 ├── templates/          # HTML templates
 │   └── index.html     # Upload interface
@@ -227,7 +228,8 @@ rm -rf uploads/* output/*
 ## 🛠️ Development
 
 The container is configured for production with:
-- 2 Uvicorn workers for better performance
+- 2 Uvicorn workers by default (configurable via `WORKERS` env var, e.g. `.env` or `docker-compose` environment)
+- If Redis (`REDIS_URL`) is unavailable at startup, the app **automatically falls back to 1 worker** with an explicit log message (`✗ Redis indisponível — iniciando uvicorn com 1 worker`) — multi-worker requires Redis to share job status between processes
 - Resource limits (CPU/Memory)
 - Always restart automatically
 - Health check configured
