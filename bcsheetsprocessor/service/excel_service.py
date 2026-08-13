@@ -113,6 +113,8 @@ def processar_excel_background(
             linhas_em_branco = 0
             celulas_com_formula_sem_valor = 0
             linhas_com_problema = []
+            linhas_telefone_invalido = 0
+            linhas_com_telefone_invalido = []
 
             col_nome = resolver_coluna(idx, *COLUNAS_NOME)
             col_primeiro_nome = resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME)
@@ -195,7 +197,7 @@ def processar_excel_background(
                         val_telefone = int(val_telefone)
                     telefone = str(val_telefone or "")
                     telefone = re.sub(r"\D", "", telefone)
-                    if len(telefone) > 13 and telefone.startswith("0"):
+                    while len(telefone) > 13 and telefone.startswith("0"):
                         telefone = telefone[1:]
 
                 # Processa etiquetas
@@ -210,6 +212,12 @@ def processar_excel_background(
 
                 # Adiciona linha se tiver telefone válido
                 if telefone and len(telefone) >= 10:
+                    novo_dados.append([primeiro_nome, sobrenome, telefone, etiquetas])
+                else:
+                    # Mantém o contato mesmo com telefone inválido (ex.: menos de 10 dígitos)
+                    linhas_telefone_invalido += 1
+                    if len(linhas_com_telefone_invalido) < 10:
+                        linhas_com_telefone_invalido.append(row_idx)
                     novo_dados.append([primeiro_nome, sobrenome, telefone, etiquetas])
 
                 # Atualiza progresso a cada 1000 linhas
@@ -226,6 +234,11 @@ def processar_excel_background(
             if celulas_com_formula_sem_valor > 0:
                 print(f"[{job_id}] ⚠ AVISO: {celulas_com_formula_sem_valor} células com possíveis fórmulas não calculadas foram ignoradas")
                 print(f"[{job_id}] ⚠ Linhas afetadas (primeiras 10): {linhas_com_problema[:10]}")
+
+            # Aviso sobre contatos mantidos sem telefone válido
+            if linhas_telefone_invalido > 0:
+                print(f"[{job_id}] ⚠ AVISO: {linhas_telefone_invalido} contatos mantidos com telefone inválido (< 10 dígitos)")
+                print(f"[{job_id}] ⚠ Linhas afetadas (primeiras 10): {linhas_com_telefone_invalido[:10]}")
 
         # Conta colunas em branco (reabre o arquivo)
         colunas_em_branco = 0
@@ -327,6 +340,7 @@ def processar_excel_background(
                 "colunas_encontradas": headers,
                 "linhas_novo": len(novo_dados),
                 "linhas_em_branco": linhas_em_branco,
+                "linhas_telefone_invalido": linhas_telefone_invalido,
                 "colunas_em_branco": colunas_em_branco,
             },
         }
@@ -343,6 +357,7 @@ def processar_excel_background(
             "colunas_originais": colunas_originais,
             "linhas_novo": len(novo_dados),
             "linhas_em_branco": linhas_em_branco,
+            "linhas_telefone_invalido": linhas_telefone_invalido,
             "colunas_em_branco": colunas_em_branco,
         })
 
@@ -356,6 +371,11 @@ def processar_excel_background(
         print(f"[{job_id}] Arquivo salvo em: {caminho_saida}")
         if aviso_formulas:
             print(f"[{job_id}] ⚠ {aviso_formulas}")
+        if linhas_telefone_invalido > 0:
+            print(
+                f"[{job_id}] ⚠ {linhas_telefone_invalido} contatos mantidos com telefone inválido (< 10 dígitos). "
+                f"Linhas: {', '.join(map(str, linhas_com_telefone_invalido[:10]))}"
+            )
 
     except Exception as e:
         print(f"[{job_id}] ✗ Erro: {str(e)}")
