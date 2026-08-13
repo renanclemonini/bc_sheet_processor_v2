@@ -5,7 +5,7 @@ echo "🚀 Iniciando rebuild/deploy (Swarm)..."
 
 cd "$(dirname "$0")/../.."
 
-BRANCH="${DEPLOY_BRANCH:-docker-swarm-migration}"
+BRANCH="${DEPLOY_BRANCH:-main}"
 ANTES=$(git rev-parse HEAD)
 git pull origin "$BRANCH"
 DEPOIS=$(git rev-parse HEAD)
