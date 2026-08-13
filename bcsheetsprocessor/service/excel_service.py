@@ -122,6 +122,20 @@ def processar_excel_background(
 
             job_service.update_job_progress(job_id, 30)
 
+            # Mapeia células que realmente contêm fórmulas (data_only=False),
+            # para distinguir fórmula não calculada de célula simplesmente vazia
+            celulas_com_formula = set()
+            with open(arquivo_entrada, "rb") as f:
+                wb_formulas = load_workbook(f, data_only=False)
+                ws_formulas = wb_formulas.active
+                for linha_cells in ws_formulas.iter_rows(
+                    min_row=2, min_col=1, max_col=len(headers)
+                ):
+                    for cell in linha_cells:
+                        if cell.data_type == "f":
+                            celulas_com_formula.add(cell.coordinate)
+                wb_formulas.close()
+
             # Processa cada linha
             for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
                 # Pula linhas vazias
@@ -134,8 +148,12 @@ def processar_excel_background(
                 for col_idx, cell in enumerate(row):
                     if cell is None and col_idx < len(headers):
                         col_name = headers[col_idx]
-                        # Verifica se é uma coluna importante
-                        if col_name in COLUNAS_IMPORTANTES:
+                        # Verifica se é uma coluna importante E contém fórmula real
+                        if (
+                            col_name in COLUNAS_IMPORTANTES
+                            and f"{ws.cell(row=row_idx, column=col_idx + 1).column_letter}{row_idx}"
+                            in celulas_com_formula
+                        ):
                             tem_none_suspeito = True
                             celulas_com_formula_sem_valor += 1
                             linhas_com_problema.append(row_idx)
