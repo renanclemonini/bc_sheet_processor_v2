@@ -172,10 +172,13 @@ def processar_excel_background(
 
                 # Processa telefone
                 if col_telefone is not None and len(row) > col_telefone:
-                    telefone = str(row[col_telefone] or "")
+                    val_telefone = row[col_telefone]
+                    if isinstance(val_telefone, float) and val_telefone.is_integer():
+                        val_telefone = int(val_telefone)
+                    telefone = str(val_telefone or "")
                     telefone = re.sub(r"\D", "", telefone)
-                    while len(telefone) > 13:
-                        telefone = telefone[:4] + telefone[5:]
+                    if len(telefone) > 13 and telefone.startswith("0"):
+                        telefone = telefone[1:]
 
                 # Processa etiquetas
                 if col_etiquetas is not None and len(row) > col_etiquetas:
