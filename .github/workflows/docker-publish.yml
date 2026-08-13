@@ -39,7 +39,7 @@ jobs:
           # bc-sheet-processor, nome documentado no stack file).
           images: ghcr.io/renanclemonini/bc-sheet-processor
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,prefix={{branch}}-,format=short
 
       - name: Build e push
