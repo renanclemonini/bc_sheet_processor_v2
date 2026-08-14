@@ -6,9 +6,11 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from openpyxl import Workbook, load_workbook
+from openpyxl.utils import get_column_letter
 
 from bcsheetsprocessor.config import OUTPUT_DIR, executor
 from bcsheetsprocessor.service import job_service
+from bcsheetsprocessor.service.sheet_reader import ler_planilha
 from bcsheetsprocessor.service.telemetry_service import enviar_log_para_n8n
 
 COLUNAS_NOME = ("nome", "nomes")
@@ -70,197 +72,173 @@ def processar_excel_background(
 
         headers = []
 
-        # Lê o arquivo Excel com data_only=True para ignorar fórmulas e usar valores calculados
-        with open(arquivo_entrada, "rb") as f:
-            wb = load_workbook(f, data_only=True)
-            ws = wb.active
-            linhas_originais = ws.max_row
-            colunas_originais = ws.max_column
+        # Lê a planilha (xlsx, xls ou ods) normalizando os dados em memória
+        dados = ler_planilha(arquivo_entrada)
+        linhas = dados.linhas
+        celulas_com_formula = dados.celulas_com_formula
+        linhas_originais = dados.max_row
+        colunas_originais = dados.max_col
 
-            job_service.update_job_progress(job_id, 10)
+        job_service.update_job_progress(job_id, 10)
 
-            # Lê headers
-            headers = [
-                str(cell.value).strip().lower() if cell.value else ""
-                for cell in next(ws.iter_rows(min_row=1, max_row=1))
-            ]
+        # Lê headers
+        headers = [
+            str(valor).strip().lower() if valor else ""
+            for valor in (linhas[0] if linhas else [])
+        ]
 
-            print(f"[{job_id}] ({len(headers)}) Colunas encontradas: {headers}")
+        print(f"[{job_id}] ({len(headers)}) Colunas encontradas: {headers}")
 
-            idx = {h: i for i, h in enumerate(headers)}
-            novo_dados = []
+        idx = {h: i for i, h in enumerate(headers)}
+        novo_dados = []
 
-            # Verifica padrão de colunas (aceita singular e plural)
-            padrao_3_colunas = (
-                resolver_coluna(idx, *COLUNAS_NOME) is not None
-                and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
-                and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
+        # Verifica padrão de colunas (aceita singular e plural)
+        padrao_3_colunas = (
+            resolver_coluna(idx, *COLUNAS_NOME) is not None
+            and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
+            and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
+        )
+        padrao_4_colunas = (
+            resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME) is not None
+            and resolver_coluna(idx, *COLUNAS_SOBRENOME) is not None
+            and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
+            and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
+        )
+
+        if not padrao_3_colunas and not padrao_4_colunas:
+            colunas_str = ", ".join(s for s in headers if s) or "(nenhuma coluna com nome encontrada)"
+            raise ValueError(
+                "Formato de planilha não reconhecido."
+                f"\n\nColunas encontradas: {colunas_str}."
             )
-            padrao_4_colunas = (
-                resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME) is not None
-                and resolver_coluna(idx, *COLUNAS_SOBRENOME) is not None
-                and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
-                and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
-            )
 
-            if not padrao_3_colunas and not padrao_4_colunas:
-                colunas_str = ", ".join(s for s in headers if s) or "(nenhuma coluna com nome encontrada)"
-                raise ValueError(
-                    "Formato de planilha não reconhecido."
-                    f"\n\nColunas encontradas: {colunas_str}."
+        linhas_em_branco = 0
+        celulas_com_formula_sem_valor = 0
+        linhas_com_problema = []
+        linhas_telefone_invalido = 0
+        linhas_com_telefone_invalido = []
+
+        col_nome = resolver_coluna(idx, *COLUNAS_NOME)
+        col_primeiro_nome = resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME)
+        col_sobrenome = resolver_coluna(idx, *COLUNAS_SOBRENOME)
+        col_telefone = resolver_coluna(idx, *COLUNAS_TELEFONE)
+        col_etiquetas = resolver_coluna(idx, *COLUNAS_ETIQUETAS)
+
+        job_service.update_job_progress(job_id, 30)
+
+        # Processa cada linha
+        for row_idx, row in enumerate(linhas[1:], start=2):
+            # Pula linhas vazias
+            if all(cell is None or str(cell).strip() == "" for cell in row):
+                linhas_em_branco += 1
+                continue
+
+            # Detecta células None que podem ser fórmulas não calculadas
+            tem_none_suspeito = False
+            for col_idx, cell in enumerate(row):
+                if cell is None and col_idx < len(headers):
+                    col_name = headers[col_idx]
+                    # Verifica se é uma coluna importante E contém fórmula real
+                    if (
+                        col_name in COLUNAS_IMPORTANTES
+                        and f"{get_column_letter(col_idx + 1)}{row_idx}"
+                        in celulas_com_formula
+                    ):
+                        tem_none_suspeito = True
+                        celulas_com_formula_sem_valor += 1
+                        linhas_com_problema.append(row_idx)
+                        break
+
+            if tem_none_suspeito:
+                continue  # Pula essa linha
+
+            primeiro_nome = ""
+            sobrenome = ""
+            telefone = ""
+            etiquetas = ""
+
+            # Processa nome (padrão 3 colunas: nome completo em uma coluna)
+            if padrao_3_colunas:
+                nome = str(row[col_nome] or "").strip()
+                partes = nome.split()
+                primeiro_nome = partes[0].title() if partes else ""
+                sobrenome = " ".join(partes[1:]).title() if len(partes) > 1 else ""
+
+            # Processa nome (padrão 4 colunas: nome e sobrenome separados)
+            elif padrao_4_colunas:
+                primeiro = str(row[col_primeiro_nome] or "").strip()
+                sobrenome_original = str(row[col_sobrenome] or "").strip()
+
+                partes = primeiro.split()
+                primeiro_nome = partes[0].title() if partes else ""
+                sobrenome_splitado = (
+                    " ".join(partes[1:]).title() if len(partes) > 1 else ""
+                )
+                sobrenome = (
+                    f"{sobrenome_splitado} {sobrenome_original}".strip().title()
                 )
 
-            linhas_em_branco = 0
-            celulas_com_formula_sem_valor = 0
-            linhas_com_problema = []
-            linhas_telefone_invalido = 0
-            linhas_com_telefone_invalido = []
+            # Processa telefone
+            if col_telefone is not None and len(row) > col_telefone:
+                val_telefone = row[col_telefone]
+                if isinstance(val_telefone, float) and val_telefone.is_integer():
+                    val_telefone = int(val_telefone)
+                telefone = str(val_telefone or "")
+                telefone = re.sub(r"\D", "", telefone)
+                while len(telefone) > 13 and telefone.startswith("0"):
+                    telefone = telefone[1:]
 
-            col_nome = resolver_coluna(idx, *COLUNAS_NOME)
-            col_primeiro_nome = resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME)
-            col_sobrenome = resolver_coluna(idx, *COLUNAS_SOBRENOME)
-            col_telefone = resolver_coluna(idx, *COLUNAS_TELEFONE)
-            col_etiquetas = resolver_coluna(idx, *COLUNAS_ETIQUETAS)
+            # Processa etiquetas
+            if col_etiquetas is not None and len(row) > col_etiquetas:
+                etiqueta_padrao = ""
+                val = str(row[col_etiquetas] or "").strip()
+                etiquetas = (
+                    f"{val}, {etiqueta_padrao}"
+                    if val and val.lower() != "nan"
+                    else etiqueta_padrao
+                )
 
-            job_service.update_job_progress(job_id, 30)
+            # Adiciona linha se tiver telefone válido
+            if telefone and len(telefone) >= 10:
+                novo_dados.append([primeiro_nome, sobrenome, telefone, etiquetas])
+            else:
+                # Mantém o contato mesmo com telefone inválido (ex.: menos de 10 dígitos)
+                linhas_telefone_invalido += 1
+                if len(linhas_com_telefone_invalido) < 10:
+                    linhas_com_telefone_invalido.append(row_idx)
+                novo_dados.append([primeiro_nome, sobrenome, telefone, etiquetas])
 
-            # Mapeia células que realmente contêm fórmulas (data_only=False),
-            # para distinguir fórmula não calculada de célula simplesmente vazia
-            celulas_com_formula = set()
-            with open(arquivo_entrada, "rb") as f:
-                wb_formulas = load_workbook(f, data_only=False)
-                ws_formulas = wb_formulas.active
-                for linha_cells in ws_formulas.iter_rows(
-                    min_row=2, min_col=1, max_col=len(headers)
-                ):
-                    for cell in linha_cells:
-                        if cell.data_type == "f":
-                            celulas_com_formula.add(cell.coordinate)
-                wb_formulas.close()
+            # Atualiza progresso a cada 1000 linhas
+            if row_idx % 1000 == 0 and linhas_originais > 0:
+                progresso = 30 + int((row_idx / linhas_originais) * 50)
+                job_service.update_job_progress(job_id, min(progresso, 80))
 
-            # Processa cada linha
-            for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-                # Pula linhas vazias
-                if all(cell is None or str(cell).strip() == "" for cell in row):
-                    linhas_em_branco += 1
-                    continue
+        print(f"[{job_id}] Processadas {len(novo_dados)} linhas válidas")
 
-                # Detecta células None que podem ser fórmulas não calculadas
-                tem_none_suspeito = False
-                for col_idx, cell in enumerate(row):
-                    if cell is None and col_idx < len(headers):
-                        col_name = headers[col_idx]
-                        # Verifica se é uma coluna importante E contém fórmula real
-                        if (
-                            col_name in COLUNAS_IMPORTANTES
-                            and f"{ws.cell(row=row_idx, column=col_idx + 1).column_letter}{row_idx}"
-                            in celulas_com_formula
-                        ):
-                            tem_none_suspeito = True
-                            celulas_com_formula_sem_valor += 1
-                            linhas_com_problema.append(row_idx)
-                            break
+        # Aviso sobre fórmulas
+        if celulas_com_formula_sem_valor > 0:
+            print(f"[{job_id}] ⚠ AVISO: {celulas_com_formula_sem_valor} células com possíveis fórmulas não calculadas foram ignoradas")
+            print(f"[{job_id}] ⚠ Linhas afetadas (primeiras 10): {linhas_com_problema[:10]}")
 
-                if tem_none_suspeito:
-                    continue  # Pula essa linha
+        # Aviso sobre contatos mantidos sem telefone válido
+        if linhas_telefone_invalido > 0:
+            print(f"[{job_id}] ⚠ AVISO: {linhas_telefone_invalido} contatos mantidos com telefone inválido (< 10 dígitos)")
+            print(f"[{job_id}] ⚠ Linhas afetadas (primeiras 10): {linhas_com_telefone_invalido[:10]}")
 
-                primeiro_nome = ""
-                sobrenome = ""
-                telefone = ""
-                etiquetas = ""
-
-                # Processa nome (padrão 3 colunas: nome completo em uma coluna)
-                if padrao_3_colunas:
-                    nome = str(row[col_nome] or "").strip()
-                    partes = nome.split()
-                    primeiro_nome = partes[0].title() if partes else ""
-                    sobrenome = " ".join(partes[1:]).title() if len(partes) > 1 else ""
-
-                # Processa nome (padrão 4 colunas: nome e sobrenome separados)
-                elif padrao_4_colunas:
-                    primeiro = str(row[col_primeiro_nome] or "").strip()
-                    sobrenome_original = str(row[col_sobrenome] or "").strip()
-
-                    partes = primeiro.split()
-                    primeiro_nome = partes[0].title() if partes else ""
-                    sobrenome_splitado = (
-                        " ".join(partes[1:]).title() if len(partes) > 1 else ""
-                    )
-                    sobrenome = (
-                        f"{sobrenome_splitado} {sobrenome_original}".strip().title()
-                    )
-
-                # Processa telefone
-                if col_telefone is not None and len(row) > col_telefone:
-                    val_telefone = row[col_telefone]
-                    if isinstance(val_telefone, float) and val_telefone.is_integer():
-                        val_telefone = int(val_telefone)
-                    telefone = str(val_telefone or "")
-                    telefone = re.sub(r"\D", "", telefone)
-                    while len(telefone) > 13 and telefone.startswith("0"):
-                        telefone = telefone[1:]
-
-                # Processa etiquetas
-                if col_etiquetas is not None and len(row) > col_etiquetas:
-                    etiqueta_padrao = ""
-                    val = str(row[col_etiquetas] or "").strip()
-                    etiquetas = (
-                        f"{val}, {etiqueta_padrao}"
-                        if val and val.lower() != "nan"
-                        else etiqueta_padrao
-                    )
-
-                # Adiciona linha se tiver telefone válido
-                if telefone and len(telefone) >= 10:
-                    novo_dados.append([primeiro_nome, sobrenome, telefone, etiquetas])
-                else:
-                    # Mantém o contato mesmo com telefone inválido (ex.: menos de 10 dígitos)
-                    linhas_telefone_invalido += 1
-                    if len(linhas_com_telefone_invalido) < 10:
-                        linhas_com_telefone_invalido.append(row_idx)
-                    novo_dados.append([primeiro_nome, sobrenome, telefone, etiquetas])
-
-                # Atualiza progresso a cada 1000 linhas
-                if row_idx % 1000 == 0 and linhas_originais > 0:
-                    progresso = 30 + int((row_idx / linhas_originais) * 50)
-                    job_service.update_job_progress(job_id, min(progresso, 80))
-
-            # Fecha o workbook original
-            wb.close()
-
-            print(f"[{job_id}] Processadas {len(novo_dados)} linhas válidas")
-
-            # Aviso sobre fórmulas
-            if celulas_com_formula_sem_valor > 0:
-                print(f"[{job_id}] ⚠ AVISO: {celulas_com_formula_sem_valor} células com possíveis fórmulas não calculadas foram ignoradas")
-                print(f"[{job_id}] ⚠ Linhas afetadas (primeiras 10): {linhas_com_problema[:10]}")
-
-            # Aviso sobre contatos mantidos sem telefone válido
-            if linhas_telefone_invalido > 0:
-                print(f"[{job_id}] ⚠ AVISO: {linhas_telefone_invalido} contatos mantidos com telefone inválido (< 10 dígitos)")
-                print(f"[{job_id}] ⚠ Linhas afetadas (primeiras 10): {linhas_com_telefone_invalido[:10]}")
-
-        # Conta colunas em branco (reabre o arquivo)
+        # Conta colunas em branco a partir dos dados em memória
         colunas_em_branco = 0
-        with open(arquivo_entrada, "rb") as f:
-            wb = load_workbook(f, read_only=True, data_only=True)
-            ws = wb.active
-
-            for col_idx in range(colunas_originais):
-                coluna_vazia = True
-                for row in ws.iter_rows(
-                    min_row=2,
-                    min_col=col_idx + 1,
-                    max_col=col_idx + 1,
-                    values_only=True,
+        for col_idx in range(colunas_originais):
+            coluna_vazia = True
+            for linha in linhas[1:]:
+                if (
+                    len(linha) > col_idx
+                    and linha[col_idx] is not None
+                    and str(linha[col_idx]).strip() != ""
                 ):
-                    if row[0] is not None and str(row[0]).strip() != "":
-                        coluna_vazia = False
-                        break
-                if coluna_vazia:
-                    colunas_em_branco += 1
-
-            wb.close()
+                    coluna_vazia = False
+                    break
+            if coluna_vazia:
+                colunas_em_branco += 1
 
         job_service.update_job_progress(job_id, 85)
 

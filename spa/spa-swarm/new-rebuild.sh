@@ -30,8 +30,10 @@ if echo "$ARQUIVOS_ALTERADOS" | grep -qv '^templates/'; then
 
     # TAG imutável automática (mesmo padrão do workflow); override manual
     # continua válido: export TAG=main-<sha>
+    # Derivada do ref REMOTO (origin/<branch>): é o commit que o GHCR
+    # buildou no push — independe da branch local/detached HEAD do servidor.
     if [ -z "${TAG:-}" ]; then
-        export TAG="$(git branch --show-current)-$(git rev-parse --short HEAD)"
+        export TAG="${BRANCH}-$(git rev-parse --short "origin/${BRANCH}")"
     fi
     echo "🔖 Publicando imagem: ghcr.io/renanclemonini/bc-sheet-processor:${TAG}"
 
@@ -56,7 +58,14 @@ if echo "$ARQUIVOS_ALTERADOS" | grep -qv '^templates/'; then
         exit 1
     fi
 
-    echo "✅ Imagem confirmada no GHCR — aplicando deploy..."
+    echo "✅ Imagem confirmada no GHCR — pré-baixando antes do deploy..."
+
+    # Pre-pull: o download acontece FORA da janela de downtime do stop-first.
+    # Sem isso, o swarm baixaria a imagem durante o swap do container.
+    echo "📥 docker pull ghcr.io/renanclemonini/bc-sheet-processor:${TAG} (pode demorar)..."
+    docker pull "ghcr.io/renanclemonini/bc-sheet-processor:${TAG}"
+    echo "✅ Imagem disponível localmente — aplicando deploy (swap rápido)..."
+
     docker stack deploy -c docker-stack.yml bc_sheets_processor_swarm
 else
     echo "🎨 Só templates alterados — sincronizando com /srv/bc-sheet-processor/templates (sem deploy)."

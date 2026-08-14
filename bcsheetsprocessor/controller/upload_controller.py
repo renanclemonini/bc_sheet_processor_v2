@@ -10,9 +10,9 @@ from bcsheetsprocessor.service.telemetry_service import coletar_dados_request
 
 
 async def processar_upload(file: UploadFile, request: Request) -> UploadResponse:
-    if not file.filename.endswith((".xlsx", ".xls")):
+    if not file.filename.endswith((".xlsx", ".xls", ".ods")):
         raise HTTPException(
-            400, detail="Apenas arquivos Excel (.xlsx, .xls) são aceitos"
+            400, detail="Apenas arquivos de planilha (.xlsx, .xls, .ods) são aceitos"
         )
 
     job_id = str(uuid4())

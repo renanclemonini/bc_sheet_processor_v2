@@ -35,7 +35,9 @@ dependencies = [
     "watchfiles (==1.1.1)",
     "websockets (==15.0.1)",
     "httpx (>=0.28.1,<0.29.0)",
-    "user-agents (>=2.2.0,<3.0.0)"
+    "user-agents (>=2.2.0,<3.0.0)",
+    "odfpy (>=1.4.1,<2.0.0)",
+    "xlrd (>=2.0.2,<3.0.0)"
 ]
 
 

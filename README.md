@@ -20,7 +20,7 @@ This system processes Excel spreadsheets from BotConversa imports, standardizing
 
 ## ✨ Features
 
-- ✅ Upload Excel files (.xlsx, .xls)
+- ✅ Upload Excel files (.xlsx, .xls, .ods)
 - ✅ Asynchronous background processing
 - ✅ Automatic phone normalization (special character removal)
 - ✅ Full name separation into first name and last name
@@ -32,7 +32,9 @@ This system processes Excel spreadsheets from BotConversa imports, standardizing
 ## 🚀 Technologies
 
 - **FastAPI** - Modern and fast web framework
-- **OpenPyXL** - Excel file processing
+- **OpenPyXL** - Excel file processing (output)
+- **Odfpy** - ODS file reading
+- **Xlrd** - Legacy .xls file reading
 - **Uvicorn** - High-performance ASGI server
 - **Jinja2** - Template engine
 - **Docker** - Application containerization
@@ -78,6 +80,10 @@ http://localhost:8000
 
 # Rebuild quando o push já publicou nova imagem no GHCR; rsync de templates/
 ./spa/spa-swarm/rebuild.sh
+
+# Rebuild otimizado (recomendado): TAG de origin/<branch> → aguarda GHCR
+# publicar → pre-pull da imagem → stack deploy (downtime mínimo, swap rápido)
+./spa/spa-swarm/new-rebuild.sh
 
 # Smoke test pós-deploy (2 uploads → status → download; gera eventos no n8n)
 ./spa/spa-swarm/smoke-test.sh
@@ -173,7 +179,8 @@ bc_sheet_processor/
 
 ## 📊 Spreadsheet Format
 
-The system accepts two spreadsheet patterns:
+The system accepts two spreadsheet patterns, in `.xlsx`, `.xls` or `.ods` (LibreOffice) files.
+The output is always `.xlsx` in Pattern 2.
 
 ### Pattern 1 (3 columns):
 | Telefone | Nome | Etiquetas |
@@ -196,7 +203,7 @@ The system accepts two spreadsheet patterns:
 Web interface for file upload
 
 ### `POST /upload`
-Upload Excel file for processing
+Upload spreadsheet file for processing (.xlsx, .xls, .ods)
 
 **Request:**
 ```bash
@@ -313,6 +320,7 @@ docker-compose logs -f sheet-processor
 - The system keeps job state in memory (restarting the container clears history)
 - Rows without valid phone numbers are automatically discarded
 - Phones with more than 13 digits are normalized by removing the 4th and 5th digits
+- The `.dockerignore` keeps dev/docs artifacts (`refatoracao-by-ia/`, `.playwright-mcp/`, `*.txt`) out of the image
 
 ## 🤝 Contributing
 

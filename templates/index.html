@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Processador de Excel - BotConversa</title>
+    <title>Processador de Planilhas - BotConversa</title>
     <link rel="stylesheet" href="/templates/css/styles.css">
 </head>
 <body>
     <div class="container">
         <h1>📊 Ajuste sua planilha para importar no BotConversa</h1>
-        <p class="subtitle-top">Envie sua planilha e deixe nosso sistema organizá-la no padrão certo de importação.</p>
+        <p class="subtitle-top">Envie sua planilha (.xlsx, .xls ou .ods) e deixe nosso sistema organizá-la no padrão certo de importação.</p>
 
         <div class="layout">
             <!-- Coluna de orientação -->
@@ -46,8 +46,8 @@
                     <div class="upload-area" id="uploadArea">
                         <div class="upload-icon">📁</div>
                         <p>Clique ou arraste seu arquivo Excel aqui</p>
-                        <p style="font-size: 12px; color: #999; margin-top: 5px;">Formatos aceitos: .xlsx, .xls</p>
-                        <input type="file" id="fileInput" accept=".xlsx,.xls" required>
+                        <p style="font-size: 12px; color: #999; margin-top: 5px;">Formatos aceitos: .xlsx, .xls, .ods</p>
+                        <input type="file" id="fileInput" accept=".xlsx,.xls,.ods" required>
                     </div>
                     <div class="file-name" id="fileName"></div>
                     <button type="submit" id="submitBtn">Processar Arquivo</button>

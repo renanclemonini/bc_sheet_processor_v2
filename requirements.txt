@@ -3,6 +3,7 @@ annotated-types==0.7.0
 anyio==3.7.1
 click==8.3.1
 colorama==0.4.6
+defusedxml==0.7.1
 et_xmlfile==2.0.0
 fastapi==0.104.1
 certifi==2026.7.22
@@ -13,6 +14,7 @@ httpx==0.28.1
 idna==3.11
 Jinja2==3.1.2
 MarkupSafe==3.0.3
+odfpy==1.4.1
 openpyxl==3.1.2
 pydantic==2.12.5
 pydantic_core==2.41.5
@@ -30,3 +32,4 @@ user-agents==2.2.0
 uvicorn==0.24.0
 watchfiles==1.1.1
 websockets==15.0.1
+xlrd==2.0.2
