@@ -14,20 +14,42 @@ set -a
 . ./.env
 set +a
 
-# Se algo NOVO chegou no pull E a mudança for só de templates/, basta
-# sincronizar (bind mount; Jinja2 recarrega sozinho) — sem imagem nova.
+# Se algo NOVO chegou no pull, decide se há algo deployável. Caminhos que
+# NUNCA exigem imagem nova (espelho EXATO do paths-ignore do workflow GHCR
+# em .github/workflows/docker-publish.yml + templates/, que vive no bind
+# mount e é sincronizado por rsync):
+#   templates/, README.md, tests/, .playwright-mcp/, context-project/
+SEM_DEPLOY='^templates/\|^README\.md$\|^tests/\|^\.playwright-mcp/\|^context-project/'
+
 if [ "$ANTES" != "$DEPOIS" ]; then
     ARQUIVOS_ALTERADOS=$(git diff --name-only "$ANTES" "$DEPOIS")
 
-    if ! echo "$ARQUIVOS_ALTERADOS" | grep -qv '^templates/'; then
-        echo "🎨 Só templates alterados — sincronizando com /srv/bc-sheet-processor/templates (sem deploy)."
-        sudo rsync -a --delete templates/ /srv/bc-sheet-processor/templates/
-        echo "✅ Deploy concluído!!"
+    if echo "$ARQUIVOS_ALTERADOS" | grep -qv "$SEM_DEPLOY"; then
+        # Existe mudança fora da lista — segue para o deploy abaixo.
+        echo "🔧 Código/deployáveis alterados no pull — prosseguindo com deploy."
+    else
+        # Todos os arquivos estão na lista sem deploy. templates/ (bind
+        # mount; Jinja2 recarrega sozinho) ainda precisa de rsync; docs e
+        # testes (paths-ignore do GHCR) nunca publicam imagem para esse
+        # commit — encerrar sem entrar no poll de 5 minutos.
+        if echo "$ARQUIVOS_ALTERADOS" | grep -q '^templates/'; then
+            echo "🎨 templates/ alterados — sincronizando com /srv/bc-sheet-processor/templates (sem deploy)."
+            sudo rsync -a --delete templates/ /srv/bc-sheet-processor/templates/
+        fi
+        if echo "$ARQUIVOS_ALTERADOS" | grep -qv '^templates/'; then
+            echo "ℹ️ Apenas arquivos sem deploy (docs/testes) — a imagem ${BRANCH}-<sha> não será publicada pelo GHCR."
+            echo "   Nada a aplicar no Swarm."
+        fi
+        # Sinaliza ao wrapper (update-prod.sh) que nada foi deployado, para
+        # ele pular o rsync redundante e imprimir um aviso explícito.
+        # O próprio wrapper remove o marcador ao fim.
+        touch .deploy-skipped
+        echo "✅ Nada a deployar — concluído sem nova imagem."
         exit 0
     fi
 fi
 
-# Chega aqui quando: código/deps alteradas no pull, OU nada novo no pull
+# Chega aqui quando: código/deployáveis alteradas no pull, OU nada novo no pull
 # (re-aplicação/retry — ex.: git pull manual feito antes de rodar o script).
 # Deploy da última versão sempre: TAG do ref remoto → espera GHCR → pre-pull → swap.
 echo "🔧 Aplicando deploy da última versão (código alterado ou re-aplicação)..."

@@ -21,7 +21,8 @@ WORKDIR /home/${USERNAME}
 COPY --chown=${USERNAME}:${USERNAME} pyproject.toml poetry.lock ./
 RUN poetry install \
     --no-root \
-    --no-ansi
+    --no-ansi \
+    --without dev
 
 COPY --chown=${USERNAME}:${USERNAME} . .
 

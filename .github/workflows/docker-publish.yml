@@ -10,6 +10,8 @@ on:
     paths-ignore:
       - "README.md"
       - ".playwright-mcp/**"
+      - "tests/**"
+      - "context-project/**"
 
 permissions:
   contents: read

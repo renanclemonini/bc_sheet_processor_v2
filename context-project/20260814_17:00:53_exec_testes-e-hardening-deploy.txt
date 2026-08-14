@@ -1,0 +1,145 @@
+# Execução — Suíte de testes pytest + hardening do build/deploy
+
+*Log de execução da sessão de 14/08/2026 (fim de tarde). Continua o
+`20260814_15:29:04_exec_deploy-producao-pos-odf.txt` (deploy do suporte ODF já concluído naquela
+sessão).*
+
+---
+
+## 0. Regra de git (explícita)
+
+- **NUNCA fazer commit nem push**: toda decisão de git (commit, push, branch, merge) é do usuário.
+- O agente apenas **sugere nomes de commit** quando solicitado (ex.: o conteúdo inicial
+  desta sessão poderia entrar como `test: add pytest suite + docker build hardening`).
+
+---
+
+## 1. Contexto
+
+- Produção em `main-106bb32` (1/1 Running) desde a sessão anterior; repo `main = 0fd7cd7`.
+- Esta sessão: (1) criar módulo de testes pytest; (2) endurecer o build do Docker (imagem sem
+  lixo de tests/dev/cache, contexto mínimo); (3) impedir que pushes de docs/testes entrem no
+  poll de 5 min do GHCR e abortem o rsync de templates no servidor.
+- Tudo foi implementado e validado **localmente** (incl. sandbox de deploy); nada commitado.
+
+---
+
+## 2. Suíte de testes pytest (98 testes, 0 falhas, 0 warnings)
+
+### Estrutura (`tests/`)
+
+| Arquivo | Cobre |
+|---|---|
+| `conftest.py` | helpers (`rodar_processamento`, client HTTP via `httpx.ASGITransport`, parametrizações comuns) |
+| `test_normalizacao.py` | normalização de nomes/telefone/etiquetas |
+| `test_sheet_reader.py` | leitura xlsx/xls/ods, células em branco, inválidos |
+| `test_excel_service.py` | pipeline completo com fixtures |
+| `test_api.py` | endpoints (upload, status, contact list, rebuild) |
+| `test_job_service.py` | processamento assíncrono/jobs |
+| `test_telemetry_service.py` | telemetria + fix `MARCAS_GENERICAS` |
+
+- **Fixtures** (`tests/fixtures/`): 12 arquivos `.xlsx/.xls/.ods` (padrão3/4, linhas vazias
+  finais, telefone inválido, fórmula com/sem valor, inválido.txt) + `gerar_fixtures.py`
+  (regeneração via soffice/LibreOffice).
+- **Pyproject**: pytest como dev-dependency; `[tool.pytest.ini_options]` com `testpaths` e
+  `filterwarnings` (ignore do openpyxl). `poetry.lock` atualizado.
+- **Detalhes técnicos**:
+  - `TestClient` (starlette 0.27) incompatível com httpx 0.28 → testes usam
+    `httpx.ASGITransport`.
+  - Helper `rodar_processamento` copia a fixture para `uploads/` temporário (o pipeline deleta
+    o input no `finally`) e drena as tasks do loop.
+  - Pipeline mantém contatos com telefone < 10 dígitos (com aviso); células vazias viram
+    `None` no xlsx; xls devolve `''` para células em branco.
+
+### Workflow `.github/workflows/tests.yml`
+
+- Python 3.12 e 3.13 (matrix), Poetry via pipx, cache do venv, `poetry run pytest -v`.
+- Dispara em push para `main` e PRs. **Informativo — não bloqueia o deploy** (decisão do
+  usuário).
+
+---
+
+## 3. Refactor `bcsheetsprocessor/service/excel_service.py`
+
+- Extraídas **funções puras** (comportamento idêntico, sem mudança de contrato):
+  `normalizar_nome_completo`, `normalizar_nome_separado`, `normalizar_telefone`,
+  `normalizar_etiquetas`, `detectar_padrao`, `linha_vazia`, constante `MIN_DIGITOS_TELEFONE=10`.
+- **Fix** em `telemetry_service.py`: `MARCAS_GENERICAS` incluía `"not/a)brand"` (typo do padrão
+  `not)a;brand`) → marca genérica falsa no nome de empresa.
+
+---
+
+## 4. Hardening do build do Docker
+
+- **Dockerfile**: `poetry install --no-root --no-ansi --without dev` (testes/ferramentas de dev
+  não entram na imagem).
+- **`.dockerignore`** final (linhas): `.git/ .venv/ .idea/ .vscode/ __pycache__/ **/__pycache__/
+  *.pyc **/*.pyc .env .playwright-mcp/ .pytest_cache/ tests/ *.txt **/*.txt`.
+  - **Quirk do buildx comprovado**: padrões soltos (`__pycache__/`, `*.pyc`) **não excluem**
+    do contexto; o prefixo `**/` é obrigatório.
+  - Contexto efetivo: **57 arquivos** (sem tests, pycache, caches, .txt).
+- **`docker-publish.yml`**: `paths-ignore` final = `README.md`, `.playwright-mcp/**`,
+  `tests/**`, `context-project/**` (espelho exato do guard do `new-rebuild.sh`).
+
+---
+
+## 5. Guard: pull sem nada deployável (polimento do update-prod.sh)
+
+### `spa/spa-swarm/new-rebuild.sh`
+
+- `SEM_DEPLOY='^templates/\|^README\.md$\|^tests/\|^\.playwright-mcp/\|^context-project/'`.
+- Se pull trouxe **apenas** arquivos sem deploy: rsync de `templates/` (se alterados — bind
+  mount, Jinja2 recarrega sozinho), cria o marcador `.deploy-skipped`, `exit 0` — **sem** entrar
+  no poll de 5 min do GHCR nem falhar o wrapper.
+- Código alterado ou nada novo → deploy normal (inalterado).
+
+### `spa/spa-swarm/update-prod.sh`
+
+- `rm -f .deploy-skipped` no início (marcador de execução anterior).
+- Após o `new-rebuild.sh`: se o marcador existe → aviso explícito
+  ("⚠ Update pulado… Sem deploy de imagem; templates, se alterados, já foram sincronizados
+  pelo new-rebuild.sh"), **pula** o `sudo rsync` redundante e remove o marcador; senão → rsync
+  normal. Confirmação `docker stack services` sempre roda.
+
+### `.gitignore`
+
+- Adicionada a linha `.deploy-skipped` (o marcador não pode ir parar num commit).
+
+### Validação (sandbox local, sem push real)
+
+- Sandbox em /tmp: clone local simulando a VM + remoto "fake" (git clone --bare) + stubs para
+  `sudo`/`docker`; depois removido. Sem qualquer contato com o GitHub real.
+- **Cenário 1 — push misto (código + docs):** deploy + rsync de templates.
+- **Cenário 2 — push só de docs/testes:** "ℹ️ Apenas arquivos sem deploy…" → "✅ Nada a
+  deployar" (exit 0) → wrapper imprime "⚠ Update pulado" e não roda o rsync → marcador
+  removido. (Antes do guard: 5 min de poll + `exit 1` + rsync abortado.)
+- **Cenário 3 — push só de templates:** sem deploy, rsync executado (index atualizado em /srv).
+
+---
+
+## 6. Estado atual (14/08/2026 ~17:00)
+
+| Item | Valor |
+|---|---|
+| Repo local | `main = 380dc5a` — **nada commitado** (10 arquivos modificados + `tests/` + `tests.yml` novos) |
+| Testes | 98 passed, sem warnings (`poetry run pytest`) |
+| Imagem em produção | `main-106bb32` (digest `e5d5a148…`) — 1/1 Running (inalterada) |
+| Fluxo de atualização | `./spa/spa-swarm/update-prod.sh` |
+
+Arquivos modificados (aguardando commit do usuário): `.dockerignore`, `Dockerfile`,
+`.gitignore`, `pyproject.toml`, `poetry.lock`, `.github/workflows/docker-publish.yml`,
+`bcsheetsprocessor/service/excel_service.py`, `bcsheetsprocessor/service/telemetry_service.py`,
+`spa/spa-swarm/new-rebuild.sh`, `spa/spa-swarm/update-prod.sh`. Novos: `.github/workflows/tests.yml`,
+`tests/` (módulos + fixtures + `gerar_fixtures.py`).
+
+---
+
+## 7. Pendências / próximo deploy
+
+1. **Commit do usuário** — sugestão: `test: add pytest suite + docker build hardening`
+   (ou commits separados: `test:…`, `build:…`, `fix: guard deploy para pushes de docs`).
+2. **Próximo push** — GHCR publica `main-<sha>`; `update-prod.sh` detecta e deploya. Push só
+   de docs/testes/context → sem imagem, wrapper encerra com "Update pulado" (exit 0).
+3. **Smoke test com `.ods` em produção** — continua pendente (fixtures .ods existem; não
+   executado no servidor).
+4. **Branch `docker-swarm-migration`** — remover após merge definitivo (sinalizado no workflow).

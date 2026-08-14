@@ -8,7 +8,7 @@ from bcsheetsprocessor.config import (
     N8N_WEBHOOK_USER,
 )
 
-MARCAS_GENERICAS = {"not)a;brand", "not.a/brand", "chromium"}
+MARCAS_GENERICAS = {"not/a)brand", "not)a;brand", "not.a/brand", "chromium"}
 
 
 def extrair_marca_navegador(sec_ch_ua: str | None) -> str | None:

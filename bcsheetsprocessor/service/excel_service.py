@@ -29,6 +29,8 @@ COLUNAS_IMPORTANTES = (
     COLUNAS_NOME + COLUNAS_PRIMEIRO_NOME + COLUNAS_SOBRENOME + COLUNAS_TELEFONE
 )
 
+MIN_DIGITOS_TELEFONE = 10
+
 
 def resolver_coluna(idx: dict, *variantes: str) -> int | None:
     """Retorna o índice da primeira variante encontrada (exato tem prioridade)"""
@@ -36,6 +38,68 @@ def resolver_coluna(idx: dict, *variantes: str) -> int | None:
         if var in idx:
             return idx[var]
     return None
+
+
+def normalizar_nome_completo(nome: str) -> tuple[str, str]:
+    """Separa nome completo em primeiro nome + sobrenome, ambos em Title Case"""
+    partes = nome.split()
+    primeiro_nome = partes[0].title() if partes else ""
+    sobrenome = " ".join(partes[1:]).title() if len(partes) > 1 else ""
+    return primeiro_nome, sobrenome
+
+
+def normalizar_nome_separado(primeiro: str, sobrenome: str) -> tuple[str, str]:
+    """Combina primeiro/sobrenome separados; excedentes do primeiro vão ao sobrenome"""
+    partes = primeiro.split()
+    primeiro_nome = partes[0].title() if partes else ""
+    sobrenome_splitado = (
+        " ".join(partes[1:]).title() if len(partes) > 1 else ""
+    )
+    sobrenome = (
+        f"{sobrenome_splitado} {sobrenome}".strip().title()
+    )
+    return primeiro_nome, sobrenome
+
+
+def normalizar_telefone(valor) -> str:
+    """Remove tudo que não é dígito; remove zeros iniciais enquanto > 13 dígitos"""
+    if isinstance(valor, float) and valor.is_integer():
+        valor = int(valor)
+    telefone = str(valor or "")
+    telefone = re.sub(r"\D", "", telefone)
+    while len(telefone) > 13 and telefone.startswith("0"):
+        telefone = telefone[1:]
+    return telefone
+
+
+def normalizar_etiquetas(valor) -> str:
+    """Concatena etiquetas; ignora 'nan' (mantém vazio)"""
+    val = str(valor or "").strip()
+    if val and val.lower() != "nan":
+        return val
+    return ""
+
+
+def detectar_padrao(headers: list[str]) -> tuple[bool, bool]:
+    """Detecta padrão 3 colunas (nome|telefone|etiquetas) e 4 colunas (1º|sobrenome|telefone|etiquetas)"""
+    idx = {h: i for i, h in enumerate(headers)}
+    padrao_3_colunas = (
+        resolver_coluna(idx, *COLUNAS_NOME) is not None
+        and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
+        and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
+    )
+    padrao_4_colunas = (
+        resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME) is not None
+        and resolver_coluna(idx, *COLUNAS_SOBRENOME) is not None
+        and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
+        and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
+    )
+    return padrao_3_colunas, padrao_4_colunas
+
+
+def linha_vazia(linha: list) -> bool:
+    """True se todos os valores da linha são None ou string vazia"""
+    return all(cell is None or str(cell).strip() == "" for cell in linha)
 
 
 def processar_excel_background(
@@ -93,17 +157,7 @@ def processar_excel_background(
         novo_dados = []
 
         # Verifica padrão de colunas (aceita singular e plural)
-        padrao_3_colunas = (
-            resolver_coluna(idx, *COLUNAS_NOME) is not None
-            and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
-            and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
-        )
-        padrao_4_colunas = (
-            resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME) is not None
-            and resolver_coluna(idx, *COLUNAS_SOBRENOME) is not None
-            and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
-            and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
-        )
+        padrao_3_colunas, padrao_4_colunas = detectar_padrao(headers)
 
         if not padrao_3_colunas and not padrao_4_colunas:
             colunas_str = ", ".join(s for s in headers if s) or "(nenhuma coluna com nome encontrada)"
@@ -129,7 +183,7 @@ def processar_excel_background(
         # Processa cada linha
         for row_idx, row in enumerate(linhas[1:], start=2):
             # Pula linhas vazias
-            if all(cell is None or str(cell).strip() == "" for cell in row):
+            if linha_vazia(row):
                 linhas_em_branco += 1
                 continue
 
@@ -160,46 +214,26 @@ def processar_excel_background(
             # Processa nome (padrão 3 colunas: nome completo em uma coluna)
             if padrao_3_colunas:
                 nome = str(row[col_nome] or "").strip()
-                partes = nome.split()
-                primeiro_nome = partes[0].title() if partes else ""
-                sobrenome = " ".join(partes[1:]).title() if len(partes) > 1 else ""
+                primeiro_nome, sobrenome = normalizar_nome_completo(nome)
 
             # Processa nome (padrão 4 colunas: nome e sobrenome separados)
             elif padrao_4_colunas:
                 primeiro = str(row[col_primeiro_nome] or "").strip()
                 sobrenome_original = str(row[col_sobrenome] or "").strip()
-
-                partes = primeiro.split()
-                primeiro_nome = partes[0].title() if partes else ""
-                sobrenome_splitado = (
-                    " ".join(partes[1:]).title() if len(partes) > 1 else ""
-                )
-                sobrenome = (
-                    f"{sobrenome_splitado} {sobrenome_original}".strip().title()
+                primeiro_nome, sobrenome = normalizar_nome_separado(
+                    primeiro, sobrenome_original
                 )
 
             # Processa telefone
             if col_telefone is not None and len(row) > col_telefone:
-                val_telefone = row[col_telefone]
-                if isinstance(val_telefone, float) and val_telefone.is_integer():
-                    val_telefone = int(val_telefone)
-                telefone = str(val_telefone or "")
-                telefone = re.sub(r"\D", "", telefone)
-                while len(telefone) > 13 and telefone.startswith("0"):
-                    telefone = telefone[1:]
+                telefone = normalizar_telefone(row[col_telefone])
 
             # Processa etiquetas
             if col_etiquetas is not None and len(row) > col_etiquetas:
-                etiqueta_padrao = ""
-                val = str(row[col_etiquetas] or "").strip()
-                etiquetas = (
-                    f"{val}, {etiqueta_padrao}"
-                    if val and val.lower() != "nan"
-                    else etiqueta_padrao
-                )
+                etiquetas = normalizar_etiquetas(row[col_etiquetas])
 
             # Adiciona linha se tiver telefone válido
-            if telefone and len(telefone) >= 10:
+            if telefone and len(telefone) >= MIN_DIGITOS_TELEFONE:
                 novo_dados.append([primeiro_nome, sobrenome, telefone, etiquetas])
             else:
                 # Mantém o contato mesmo com telefone inválido (ex.: menos de 10 dígitos)
