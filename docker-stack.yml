@@ -26,6 +26,11 @@ services:
       - /srv/bc-sheet-processor/uploads:/home/bcsheetprocessor/uploads
       - /srv/bc-sheet-processor/output:/home/bcsheetprocessor/output
       - /srv/bc-sheet-processor/templates:/home/bcsheetprocessor/templates
+      # Logs estruturados de falha: o app escreve em $HOME/logs/error-logs-sheets-processor.log
+      # (container HOME=/home/bcsheetprocessor). ${HOME} é interpolado no `docker stack deploy`
+      # a partir do shell que roda o deploy — ao usar sudo, garanta HOME com `sudo -E` ou
+      # export explícito. No host do Rocky, o arquivo aparece em $HOME/logs/.
+      - ${HOME}/logs:/home/bcsheetprocessor/logs
 
     environment:
       - PYTHONUNBUFFERED=1

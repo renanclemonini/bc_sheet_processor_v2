@@ -19,5 +19,7 @@ fi
 # --- fim do trecho novo ---
 
 chown -R __USERNAME__:__USERNAME__ /home/__USERNAME__/uploads /home/__USERNAME__/output
+# Diretório de logs de falha (bind mount em ${HOME}/logs no host do Swarm)
+install -d -o __USERNAME__ -g __USERNAME__ /home/__USERNAME__/logs
 
 exec su-exec __USERNAME__ poetry run python run.py

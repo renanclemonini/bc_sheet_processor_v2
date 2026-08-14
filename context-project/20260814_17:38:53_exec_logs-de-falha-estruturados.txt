@@ -1,0 +1,129 @@
+# Execução — Logs de falha estruturados (classificação + mensagens amigáveis)
+
+*Log de execução da sessão de 14/08/2026 (fim de tarde). Continua o
+`20260814_17:00:53_exec_testes-e-hardening-deploy.txt` (suíte pytest + hardening do build).*
+
+---
+
+## 0. Objetivo
+
+Gerar logs de falha detalhando o **motivo** da falha com base no mapa de falhas
+conhecidas do pipeline. Hoje todo erro cai num catch-all (`except Exception`) que
+grava `error=str(e)` cru (ex.: `BadZipFile: File is not a zip file`), sem categoria,
+sem estágio, sem mensagem amigável — e só vive 1h no Redis (TTL) ou no print do container.
+
+---
+
+## 1. Decisões da sessão (definidas com o usuário)
+
+- **Destino do log:** `$HOME/logs/error-logs-sheets-processor.log` — caminho literal
+  na VM de produção. No container, o app grava em `Path.home()/logs/...` (= `/home/bcsheetprocessor/logs`),
+  com bind mount `- ${HOME}/logs:/home/bcsheetprocessor/logs` no stack (o `${HOME}` é
+  interpolado pelo `docker stack deploy` a partir do shell que roda o deploy — com
+  `sudo` é preciso `sudo -E` ou export explícito).
+- **Mensagem ao usuário:** `data.error` passa a ser **amigável em PT**; o detalhe
+  técnico fica apenas no arquivo de log (e no `erro_mensagem` da telemetria).
+- **Telemetria n8n:** **inalterada** — payload atual preservado (`erro_mensagem` cru
+  continua indo; sem novo campo).
+- **Regra de git:** apenas `poetry run pytest` na verificação — **nada de commit/push**
+  (toda decisão de git é do usuário).
+
+---
+
+## 2. Mapa de falhas → códigos/categorias (classificador)
+
+| Falha conhecida | Código | Categoria | Mensagem amigável (PT) |
+|---|---|---|---|
+| `ValueError` "Formato de planilha não reconhecido" (com colunas) | `formato_nao_reconhecido` | `formato_invalido` | mensagem atual + colunas encontradas |
+| `ValueError` "Nenhuma linha válida..." (com dica F9) | `nenhuma_linha_valida` | `sem_linhas_validas` | mensagem atual + dica F9 |
+| `InvalidFileException`/`BadZipFile` (tipo/caixa `BadZipFile:`) /`xlrd.XLRDError` / módulos `odf`/`zipfile`/`ElementTree`/`xml` / heurísticas de mensagem ("not a zip file", "corrupt", ...) | `arquivo_corrompido` | `arquivo_invalido` | "O arquivo está corrompido ou não é uma planilha válida (.xlsx, .xls ou .ods). Reexporte a planilha no Excel ou LibreOffice e tente novamente." |
+| "Arquivo não foi criado no sistema de arquivos" / "Arquivo gerado está corrompido" | `erro_geracao_saida` | `erro_saida` | "Não foi possível gerar o arquivo de saída. Tente novamente; se o problema persistir, informe o suporte." |
+| qualquer outra (fallback) | `erro_interno` | `erro_interno` | "Ocorreu um erro inesperado durante o processamento. Tente novamente; se o problema persistir, informe o suporte." |
+
+Formato JSONL de cada linha gravada:
+`timestamp` (ISO UTC) · `job_id` · `nome_arquivo` · `estagio` · `categoria` · `codigo` ·
+`mensagem_amigavel` · `detalhe_tecnico` (str(e), truncado em 500) · `colunas_encontradas`.
+
+Estágios rastreados no pipeline: `leitura` → `processamento` → `geracao_saida`.
+
+---
+
+## 3. Checklist de execução
+
+- [x] Criado `bcsheetsprocessor/service/failure_log.py` (classificador + gravação JSONL)
+- [x] Integrado o classificador no catch-all de `processar_excel_background` (com rastreio de estágio)
+- [x] Novo volume `${HOME}/logs` no `docker-stack.yml`
+- [x] `entrypoint.sh` criando/posando o diretório de logs
+- [x] Testes: `tests/test_failure_log.py` (11) + caso corrompido ampliado em `test_excel_service.py`
+- [x] `poetry run pytest` → 109 passed
+- [ ] Commit/push do usuário (não feito nesta sessão)
+
+---
+
+## 4. Log das mudanças
+
+1. **`bcsheetsprocessor/service/failure_log.py` (novo)** — `FalhaInfo` (dataclass
+   frozen: codigo/categoria/mensagem_amigavel), `classificar_falha(exc)` (sempre retorna
+   FalhaInfo, fallback `erro_interno`), `registrar_falha(job_id, nome_arquivo, exc,
+   estagio, colunas)` (grava JSONL com lock de thread, **nunca propaga exceção** — padrão
+   da telemetria; falha de gravação só loga no stdout). Caminho: `Path.home()/logs/error-logs-sheets-processor.log`.
+2. **`bcsheetsprocessor/service/excel_service.py`** — import de `registrar_falha`;
+   variável `estagio` atualizada nos 3 momentos críticos (após `ler_planilha` →
+   `leitura`; antes dos headers → `processamento`; antes de criar o Workbook →
+   `geracao_saida`); bloco `except` agora: `traceback.print_exc()` (mantido) →
+   `payload_telemetria["erro_mensagem"] = str(e)` (mantido, cru) → `registrar_falha(...)`
+   → `job.error = info.mensagem_amigavel` (antes: `str(e)`). `colunas_encontradas` do job
+   preservado.
+3. **`docker-stack.yml`** — novo volume `- ${HOME}/logs:/home/bcsheetprocessor/logs` com
+   comentário sobre interpolação no `docker stack deploy` e `sudo -E`.
+4. **`entrypoint.sh`** — após o `chown` de uploads/output, `install -d -o __USERNAME__ -g
+   __USERNAME__ /home/__USERNAME__/logs` (cria e posa o dir; seguro com `set -e`).
+5. **`tests/test_failure_log.py` (novo, 11 testes)** — classificação das 5 famílias
+   (formato não reconhecido, nenhuma linha válida/F9, corrompido via
+   InvalidFileException/BadZipFile/XLRDError, erro de saída, fallback) + gravação JSONL
+   em HOME temporário (monkeypatch de LOG_DIR/LOG_PATH), truncamento do detalhe técnico
+   (≤503 com "..."), tolerância a falha de gravação.
+6. **`tests/test_excel_service.py`** — `test_arquivo_corrompido` agora também garante
+   mensagem amigável (contém "corrompido", **não** contém "File is not a zip file");
+   novo `test_arquivo_corrompido_grava_log_estruturado` (verifica JSONL com
+   `codigo == "arquivo_corrompido"` e `estagio == "leitura"`).
+7. **Frontend — sem mudanças:** `app.js:144` já exibe `data.error`; passa a mostrar a
+   mensagem amigável automaticamente.
+
+---
+
+## 5. Validações
+
+- `poetry run pytest` → **109 passed** (~0.77s), sem warnings (98 anteriores + 11 novos).
+- `git status`: 4 arquivos modificados + 2 novos (abaixo), **nada commitado/pushado**.
+
+---
+
+## 6. Estado atual (14/08/2026 ~17:40)
+
+| Item | Valor |
+|---|---|
+| Repo local | `main` com 4 modificados + 2 novos: `excel_service.py`, `docker-stack.yml`, `entrypoint.sh`, `test_excel_service.py`; novos `failure_log.py`, `test_failure_log.py` — sem commit |
+| Testes | 109 passed (`poetry run pytest`) |
+| Imagem em produção | `main-106bb32` (digest `e5d5a148…`) — 1/1 Running (inalterada) |
+| Fluxo de atualização | `./spa/spa-swarm/update-prod.sh` |
+
+---
+
+## 7. Pendências / próximo deploy
+
+1. **Commit do usuário** — sugestão: `feat: log estruturado de falhas + mensagens amigáveis`
+   (ou separados: `feat: classifier de falhas…`, `build: volume ${HOME}/logs…`, `test:…`).
+2. **Próximo push** — GHCR publica `main-<sha>`, `update-prod.sh` deploya. Atenção ao
+   número de workers do Rede do Redis estável e ao **`${HOME}` do volume**: se o deploy
+   rodar via `sudo`, garantir `sudo -E` (ou HOME exportado) para o log cair em
+   `$HOME/logs/error-logs-sheets-processor.log` na VM. Primeiro deploy também precisa
+   criar o dir no host (`mkdir -p ~/logs`) — o `install -d` do entrypoint já cria dentro
+   do container apenas se o bind mount existir.
+3. **Smoke test com `.ods` em produção** — pendente de sessões anteriores.
+4. **Branch `docker-swarm-migration`** — remover após o merge definitivo em `main`.
+
+---
+
+*Log gerado a partir de validações locais da sessão de 14/08/2026. Sem alterações
+em produção (nada commitado).*

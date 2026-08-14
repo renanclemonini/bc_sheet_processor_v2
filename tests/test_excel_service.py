@@ -114,6 +114,29 @@ class TestProcessamentoErros:
         _, status = rodar_processamento(ambi_test, caminho, loop=asyncio.new_event_loop())
         assert status["status"] == "error"
         assert status["error"]
+        assert "corrompido" in status["error"]
+        assert "File is not a zip file" not in status["error"]
+
+    def test_arquivo_corrompido_grava_log_estruturado(self, ambi_test, tmp_path, monkeypatch):
+        from bcsheetsprocessor.service import failure_log
+
+        log_dir = tmp_path / "home" / "logs"
+        monkeypatch.setattr(failure_log, "LOG_DIR", log_dir)
+        monkeypatch.setattr(failure_log, "LOG_PATH", log_dir / "error-logs-sheets-processor.log")
+
+        caminho = tmp_path / "corrompido2.xlsx"
+        caminho.write_bytes(b"isso nao e um xlsx")
+
+        _, status = rodar_processamento(ambi_test, caminho, loop=asyncio.new_event_loop())
+        assert status["status"] == "error"
+
+        import json
+
+        assert failure_log.LOG_PATH.exists()
+        linha = json.loads(failure_log.LOG_PATH.read_text(encoding="utf-8"))
+        assert linha["codigo"] == "arquivo_corrompido"
+        assert linha["estagio"] == "leitura"
+        assert linha["job_id"]
 
 
 class TestAvisoFormulas:

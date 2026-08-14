@@ -10,6 +10,7 @@ from openpyxl.utils import get_column_letter
 
 from bcsheetsprocessor.config import OUTPUT_DIR, executor
 from bcsheetsprocessor.service import job_service
+from bcsheetsprocessor.service.failure_log import registrar_falha
 from bcsheetsprocessor.service.sheet_reader import ler_planilha
 from bcsheetsprocessor.service.telemetry_service import enviar_log_para_n8n
 
@@ -136,7 +137,7 @@ def processar_excel_background(
 
         headers = []
 
-        # Lê a planilha (xlsx, xls ou ods) normalizando os dados em memória
+        estagio = "leitura"
         dados = ler_planilha(arquivo_entrada)
         linhas = dados.linhas
         celulas_com_formula = dados.celulas_com_formula
@@ -145,7 +146,7 @@ def processar_excel_background(
 
         job_service.update_job_progress(job_id, 10)
 
-        # Lê headers
+        estagio = "processamento"
         headers = [
             str(valor).strip().lower() if valor else ""
             for valor in (linhas[0] if linhas else [])
@@ -286,7 +287,7 @@ def processar_excel_background(
 
         print(f"[{job_id}] Criando novo arquivo Excel...")
 
-        # Cria novo workbook
+        estagio = "geracao_saida"
         wb_novo = Workbook()
         ws_novo = wb_novo.active
         ws_novo.title = "Contatos"
@@ -397,9 +398,11 @@ def processar_excel_background(
 
         payload_telemetria["erro_mensagem"] = str(e)
 
+        info = registrar_falha(job_id, nome_original, e, estagio, headers)
+
         job_service.set_job_status(job_id, {
             "status": "error",
-            "error": str(e),
+            "error": info.mensagem_amigavel,
             "colunas_encontradas": headers,
             "arquivo_original": nome_original,
             "progresso": 0,
