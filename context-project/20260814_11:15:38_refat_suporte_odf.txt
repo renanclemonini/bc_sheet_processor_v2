@@ -1,0 +1,124 @@
+# Relatório — Suporte a planilhas ODF (.ods) + correção .xls
+
+*Documento de referência da sessão de 14/08/2026. Baseado no `bcsheetsprocessor.txt` (relatório técnico do projeto) e na análise completa do código-fonte.*
+
+---
+
+## 1. Veredito sobre a ideia
+
+Objetivo **válido e bem posicionado**: `.ods` é o formato padrão de salvamento do LibreOffice no Linux, e usuários do BotConversa em ambiente Linux (ou migrando de Excel) vão naturalmente gerar `.ods`. A infraestrutura do projeto já favorece a mudança: a validação de formato é centralizada em `upload_controller.py:13`, o processamento é um pipeline único em `excel_service.py`, e job/status/download/telemetria são **agnósticos a formato** — só o leitor precisa mudar.
+
+---
+
+## 2. Descobertas críticas da análise
+
+| # | Descoberta | Impacto |
+|---|---|---|
+| 1 | **OpenPyXL (única lib de planilha do projeto) NÃO lê `.ods`** — é exclusiva OOXML (.xlsx/.xlsm). Também não lê `.xls` legado | Suporte a .ods exige novo leitor (a decisão "odfpy direto" cobre isso) |
+| 2 | **`.xls` já é aceito hoje mas sempre falha**: o upload passa na validação de extensão (`upload_controller.py:13`) e o processamento morre com `InvalidFileException` do openpyxl | Bug pré-existente — corrigido de brinde com xlrd |
+| 3 | **O pipeline abre o arquivo 3 vezes** (`excel_service.py:74`, `:130`, `:245`): valores (data_only), fórmulas (data_only=False) e contagem de colunas em branco (read_only) | Com o novo leitor unificado, vira 1 leitura só |
+| 4 | **ODS guarda valor cacheado**: diferentemente do .xlsx, a célula com fórmula salva o último valor calculado (`office:value`) no próprio XML | A detecção de "fórmula não calculada" precisa de heurística equivalente: célula com atributo `table:formula` e **sem** `office:value`/texto → suspeita |
+| 5 | ODS possui `number-columns-repeated`/`number-rows-repeated` (células repetidas) que **precisam ser expandidas** | Se ignorado, colunas/linhas desalinham |
+| 6 | Docker/Swarm **não precisam de mudança**: Dockerfile instala via Poetry (lockfile), a imagem GHCR é construída no push, e o stack usa só a imagem | Só `pyproject.toml` + `poetry.lock` mudam |
+
+---
+
+## 3. Decisões confirmadas
+
+- **Saída:** sempre `.xlsx` (download_controller intacto; LibreOffice abre .xlsx nativamente)
+- **Leitura .ods:** `odfpy` direto (puro Python, imagem quase não cresce — sem pandas)
+- **.xls:** corrigir de verdade com `xlrd` 2.x (que suporta só o formato legado — perfeito, sem conflito com openpyxl)
+
+---
+
+## 4. Plano de implementação
+
+### 4.1 Dependências
+- `pyproject.toml` → adicionar `odfpy` e `xlrd`
+- `poetry lock && poetry install` (atualiza `poetry.lock`)
+- `requirements.txt` (raiz) → adicionar as duas libs por paridade
+
+### 4.2 Novo módulo `bcsheetsprocessor/service/sheet_reader.py`
+Interface única que substitui as 3 aberturas de arquivo do pipeline:
+
+```python
+@dataclass
+class PlanilhaDados:
+    linhas: list[list]        # todas as linhas com valores (header incluso)
+    celulas_com_formula: set  # coordenadas "A2" de células fórmula SEM valor cacheado
+    max_row: int
+    max_col: int
+
+def ler_planilha(caminho: str) -> PlanilhaDados
+```
+
+Dispatch por extensão:
+- **.ods** → `odf.opendocument.load()`: valor numérico via atributo `office:value`, texto via `<text:p>`, expande `number-columns-repeated`/`number-rows-repeated`; célula com `table:formula` e sem valor → `None` + adiciona a `celulas_com_formula` (equivalente exato ao comportamento atual `data_only=True`/`data_type=="f"`)
+- **.xls** → `xlrd.open_workbook` (values + `xlrd.XL_CELL_FORMULA` para o set de fórmulas)
+- **.xlsx/.xlsm** → openpyxl (caminho atual)
+
+### 4.3 `excel_service.py` (refatoração localizada, ~60-80 linhas)
+- Substituir os 3 blocos de `load_workbook` (`:74-139`, `:245-263`) por uma única chamada a `ler_planilha()`
+- Contagem de colunas em branco passa a derivar dos dados em memória
+- **Todo o resto fica idêntico**: detecção de padrão 3/4 colunas, normalização de nome/telefone/etiquetas, progresso, escrita do .xlsx, telemetria, `aviso_formulas` (preservado para os 3 formatos)
+
+### 4.4 `upload_controller.py`
+- Linha 13: `file.filename.endswith((".xlsx", ".xls", ".ods"))`
+- Mensagem: `"Apenas arquivos de planilha (.xlsx, .xls, .ods) são aceitos"`
+
+### 4.5 Frontend — `templates/index.html`
+- Linha 49: `Formatos aceitos: .xlsx, .xls, .ods`
+- Linha 50: `accept=".xlsx,.xls,.ods"`
+- (Opcional) título "Processador de Excel" → "Processador de Planilhas"
+- `app.js` não muda (já é genérico)
+
+### 4.6 Documentação — `README.md`
+- Features: `Upload Excel files (.xlsx, .xls)` → `(.xlsx, .xls, .ods)`
+- Nota no endpoint `POST /upload` e na seção Troubleshooting
+
+### 4.7 Infra (sem mudança de arquivo)
+- Dockerfile/stack/CI inalterados. Deploy em 2 vias: backend (.py) via push → GHCR → `deploy.sh`; frontend (index.html) via rsync de `templates/` → `rebuild.sh` (bind-mounted no swarm)
+
+---
+
+## 5. Casos de borda a tratar nos testes
+
+1. `.ods` dos dois padrões (3 e 4 colunas), com acentos ("Telefone", "Etiquetas")
+2. `.ods` com `number-columns-repeated` (células vazias repetidas)
+3. `.ods` com fórmulas não calculadas (raro, mas a heurística deve detectar)
+4. `.xls` legado real (exportado do Excel antigo/LibreOffice)
+5. Regressão: `.xlsx` existentes
+6. Linhas vazias no fim do arquivo ODS (não devem ser contadas como "válidas")
+
+---
+
+## 6. Validação
+
+- Gerar fixtures com `soffice --headless --convert-to ods` (e `.xls`) a partir das planilhas de teste
+- Rodar local (`poetry run uvicorn`), upload → status → download → conferir conteúdo do .xlsx de saída
+- Pós-deploy no swarm: `smoke-test.sh` com fixture `.ods`
+
+---
+
+## 7. Riscos
+
+- **Refatoração do núcleo do pipeline** (3 leituras → 1): mitigado por mudanças localizadas e testes com fixtures antes do deploy
+- **Memória**: odfpy carrega o documento em RAM (DOM) — mesmo perfil de risco OOM do xlsx atual com limite 1.5G; não é regressão
+- **Paridade de `aviso_formulas`**: preservada via heurística do `table:formula`, mas em .ods/`.xls` o caso é raro (valor cacheado já vem salvo)
+- (Opcional, nice-to-have) adicionar `formato_origem` no payload de telemetria para medir adoção
+
+---
+
+## 8. Ordem de execução sugerida
+
+1. Dependências (pyproject + lock + requirements)
+2. `sheet_reader.py` (novo módulo)
+3. Refatorar `excel_service.py` para usar o leitor
+4. `upload_controller.py` + `index.html`
+5. Fixtures .ods/.xls + validação local completa
+6. README + commit/push → imagem GHCR → `deploy.sh` no swarm
+7. `smoke-test.sh` com fixture `.ods`
+
+---
+
+*Relatório gerado a partir de análise completa do código na sessão de 14/08/2026.*

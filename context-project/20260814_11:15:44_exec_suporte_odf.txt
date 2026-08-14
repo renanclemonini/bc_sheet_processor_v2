@@ -1,0 +1,115 @@
+# Execução — Suporte ODF (.ods) + correção .xls
+
+*Log de execução da sessão de 14/08/2026. Referência de planejamento: `refat_suporte_odf.txt`.*
+
+---
+
+## 1. Objetivo
+
+1. Aceitar upload de planilhas `.ods` (formato padrão do LibreOffice no Linux)
+2. Corrigir o suporte a `.xls` legado (hoje aceito na validação mas sempre falha no processamento)
+3. Saída permanece sempre `.xlsx` (sem mudanças no download/UI de resultado)
+
+---
+
+## 2. Decisões da sessão
+
+- **Saída:** sempre `.xlsx`
+- **Leitura .ods:** `odfpy` direto (sem pandas)
+- **.xls:** `xlrd` 2.x
+- **Arquitetura:** novo módulo `sheet_reader.py` com interface única `ler_planilha()` substituindo as 3 aberturas de arquivo do pipeline
+- **Deploy:** backend via push → GHCR → `deploy.sh`; frontend via `rebuild.sh` (templates bind-mounted)
+
+---
+
+## 3. Checklist de execução
+
+- [x] Documento de referência criado (`refat_suporte_odf.txt`)
+- [x] Dependências adicionadas (`odfpy`, `xlrd`) e lockfile atualizado
+- [x] `sheet_reader.py` criado com dispatch .ods/.xls/.xlsx
+- [x] `excel_service.py` refatorado para usar `ler_planilha()`
+- [x] `upload_controller.py` aceitando `.ods`
+- [x] `templates/index.html` atualizado (formatos + accept)
+- [x] `README.md` atualizado
+- [x] Fixtures .ods/.xls gerados e validação local concluída (upload → status → download)
+- [ ] Deploy no swarm + smoke test com .ods
+
+---
+
+## 4. Log das mudanças
+
+1. **`pyproject.toml`** — adicionado `odfpy (>=1.4.1,<2.0.0)` e `xlrd (>=2.0.2,<3.0.0)`; `poetry.lock` atualizado via `poetry add`
+2. **`requirements.txt`** — sincronizado: `defusedxml==0.7.1`, `odfpy==1.4.1`, `xlrd==2.0.2`
+3. **`bcsheetsprocessor/service/sheet_reader.py` (novo)** — dataclass `PlanilhaDados` (linhas, celulas_com_formula, max_row, max_col) + `ler_planilha()` com dispatch por extensão:
+   - `.ods`: odfpy (`odf.opendocument.load`) — números via `office:value`, texto via `extractText`, expansão de `number-columns-repeated`/`number-rows-repeated` (com cap de 1M linhas), células com `table:formula` sem `office:value-type` → `None` + registrada como suspeita; linhas vazias finais removidas; linhas alinhadas a `max_col`
+   - `.xls`: xlrd 2.0.2 — valores + conversão de datas (`xldate_as_datetime`); fórmula em cache já vem calculada (sem detecção de fórmula na API pública)
+   - `.xlsx`: openpyxl `data_only=True` (mesmo caminho de antes) + set de fórmulas via `data_only=False`
+4. **`excel_service.py`** — as 3 aberturas de arquivo (`:74`, `:130`, `:245`) substituídas por 1 chamada a `ler_planilha()`; contagem de colunas em branco derivada dos dados em memória; coordenada suspeita via `get_column_letter`; resto da lógica intocado (padrões 3/4 colunas, normalização, progresso, escrita/validação do .xlsx, telemetria, `aviso_formulas`)
+5. **`upload_controller.py`** — aceita `.xlsx/.xls/.ods`; mensagem de erro atualizada
+6. **`templates/index.html`** — formatos aceitos `.xlsx, .xls, .ods`; `accept` do input; título "Processador de Planilhas"; subtítulo com formatos
+7. **`README.md`** — features, endpoint `POST /upload`, tecnologias (Odfpy/Xlrd) e seção de formato
+
+---
+
+## 5. Validações
+
+Fixtures gerados via LibreOffice (`soffice --headless`): padrão 3 colunas e 4 colunas em `.xlsx/.ods/.xls`, arquivo com fórmulas em `.ods`, e `.ods` editado manualmente com fórmula não calculada (`table:formula` sem `office:value`).
+
+App rodado local (`run.py`, 1 worker por fallback sem Redis) — resultados idênticos entre formatos:
+
+| Fixture | Status | linhas_originais | linhas_novo | em_branco | col_brancas | colunas_encontradas |
+|---|---|---|---|---|---|---|
+| padrao3.xlsx | completed | 6 | 4 | 1 | 0 | telefone, nome, etiquetas |
+| padrao3.ods | completed | 6 | 4 | 1 | 0 | telefone, nome, etiquetas |
+| padrao3.xls | completed | 6 | 4 | 1 | 0 | telefone, nome, etiquetas |
+| padrao4.ods | completed | 4 | 3 | 0 | 0 | primeiro nome, sobrenome, telefone, etiquetas |
+| com_formula.ods | completed | 4 | 3 | 0 | 0 | telefone, nome, etiquetas |
+| fórmula não calculada (.ods) | completed | 6 | 3 | 1 | 0 | — aviso_formulas: "1 células com possíveis fórmulas não calculadas foram ignoradas. Linhas afetadas: 2" |
+
+- Download em todos os casos: 200, content-type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (.xlsx)
+- Conteúdo do .xlsx de saída verificado (Title Case, telefones normalizados, 4 colunas)
+- Upload de `.txt` → 400 com "Apenas arquivos de planilha (.xlsx, .xls, .ods) são aceitos"
+- `GET /` → 200; logs sem tracebacks
+
+---
+
+## 6. Resultado final
+
+Implementação concluída e validada localmente. Pendente apenas o deploy no swarm:
+
+1. Commit + push → workflow GHCR publica imagem → `./spa/spa-swarm/deploy.sh`
+2. Frontend (index.html) via rsync → `./spa/spa-swarm/rebuild.sh`
+3. Smoke test com fixture `.ods` (`./spa/spa-swarm/smoke-test.sh`)
+
+Observação: `smoke-test.sh` usa fixtures `.xlsx` — para cobrir o .ods, adicionar fixture opcional em execuções futuras.
+
+---
+
+## 7. Tooling de deploy (mesma sessão)
+
+### `spa/spa-swarm/new-rebuild.sh` — fluxo otimizado (minimizar downtime)
+
+O `spa/spa-swarm/rebuild.sh` foi mantido **intacto** para comparação. O `new-rebuild.sh`
+passou a ter o fluxo: git pull → TAG derivada do **ref remoto** (`origin/${BRANCH}`, o
+commit que o GHCR buildou — independe da branch local/detached HEAD) com `export` →
+poll de espera da publicação no GHCR (lógica já existente) → **`docker pull` da tag
+(pré-download fora da janela de deploy)** → `docker stack deploy` (swap stop-first com
+a imagem já local, janela de segundos). Caminho "só templates → rsync" permanece.
+
+Justificativa: sem o pre-pull, o swarm baixaria a imagem durante o swap do container,
+estendendo o downtime de segundos para minutos. Downtime zero absoluto não é possível
+com `mode: host` + `replicas: 1` + `stop-first` (documentado no docker-stack.yml).
+
+### `.dockerignore` — contexto de build enxuto
+
+Adicionados: `refatoracao-by-ia/`, `.playwright-mcp/`, `*.txt`, `**/*.txt`.
+(`__pycache__/` já estava ignorado.) Validação: build de teste confirmou 0 arquivos
+`.txt` e ausência das pastas dentro da imagem (contexto ~217KB contra ~700KB+ antes).
+
+### Fora do escopo (decisão do usuário, tratado depois)
+
+- `deploy.sh` ainda usa o fluxo antigo (TAG sem `export` → stack deploya `latest`)
+- `new-rebuild.sh` não promovido a oficial / não removido
+- `paths-ignore` do workflow GHCR inalterado
+
+

@@ -320,7 +320,7 @@ docker-compose logs -f sheet-processor
 - The system keeps job state in memory (restarting the container clears history)
 - Rows without valid phone numbers are automatically discarded
 - Phones with more than 13 digits are normalized by removing the 4th and 5th digits
-- The `.dockerignore` keeps dev/docs artifacts (`refatoracao-by-ia/`, `.playwright-mcp/`, `*.txt`) out of the image
+- The `.dockerignore` keeps dev/docs artifacts (`.playwright-mcp/`, `*.txt`) out of the image
 
 ## 🤝 Contributing
 

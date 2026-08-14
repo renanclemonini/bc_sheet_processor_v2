@@ -1,0 +1,452 @@
+================================================================================
+RELATÓRIO TÉCNICO — MIGRAÇÃO DO bc_sheet_processor PARA DOCKER SWARM
+================================================================================
+Preparado para: responsável pela execução da migração
+Sistema: bc_sheet_processor (normalização de planilhas de contatos - BotConversa)
+Ambiente de produção: VM Rocky Linux (rocky10-srv01), Proxmox, 2 vCPUs / 3.6Gi RAM
+Data do relatório: 13/08/2026
+
+Este documento reúne todas as decisões técnicas tomadas para adaptar o projeto
+de Docker Compose para Docker Swarm, a justificativa de cada uma, e o conteúdo
+completo dos arquivos que precisam ser criados/alterados no repositório.
+
+================================================================================
+1. RESUMO EXECUTIVO
+================================================================================
+
+O projeto já tinha duas características que facilitam a migração:
+  - Estado de jobs vive em Redis EXTERNO (Redis Cloud) — não há banco de dados
+    para orquestrar dentro do cluster, que é normalmente o ponto mais difícil
+    de uma migração para Swarm.
+  - O launcher (run.py) já detecta indisponibilidade de Redis e cai para 1
+    worker automaticamente — essa lógica não precisa de nenhuma alteração.
+
+Cenário assumido: 1 nó de Swarm (o próprio rocky10-srv01). O stack file foi
+desenhado para esse cenário, com anotações do que precisa mudar se um segundo
+nó for adicionado ao cluster no futuro.
+
+Arquivos entregues nesta migração:
+  1. docker-stack.yml           -> stack file compatível com Swarm
+  2. entrypoint.sh              -> versão corrigida do entrypoint atual
+  3. .github/workflows/docker-publish.yml -> build/push automático de imagem
+  4. Este relatório
+
+================================================================================
+2. DECISÕES TÉCNICAS E JUSTIFICATIVAS
+================================================================================
+
+--------------------------------------------------------------------------------
+2.1 REGISTRY DE IMAGEM: GitHub Container Registry (GHCR)
+--------------------------------------------------------------------------------
+Decisão: publicar a imagem em ghcr.io/renanclemonini/bc-sheet-processor
+
+Motivo: Docker Swarm NUNCA builda imagem (a diretiva `build:` do Compose não
+existe em Swarm) — o serviço só faz `pull` de uma imagem que já precisa
+existir em algum registry. Entre as opções avaliadas (Docker Hub, GHCR, OCIR
+da Oracle Cloud, registry self-hosted, Harbor), GHCR foi escolhido porque:
+  - Já está embutido na conta GitHub existente (renanclemonini) — não é
+    necessário criar conta em nenhum serviço novo.
+  - Integração nativa com GitHub Actions: o workflow de build/push usa um
+    token temporário gerado automaticamente pelo próprio GitHub
+    (GITHUB_TOKEN), sem necessidade de gerenciar credencial de longa duração.
+  - Gratuito para o volume de uso deste projeto.
+  - Evita o rate limit agressivo de pull anônimo do Docker Hub, que pode
+    incomodar em ambiente de homelab.
+
+Alternativa descartada: registry self-hosted (container registry:2 no
+Proxmox) foi considerado, mas adiciona uma peça de infraestrutura extra
+para administrar (storage, TLS, backup) sem necessidade no estágio atual.
+
+--------------------------------------------------------------------------------
+2.2 BUILD E PUBLICAÇÃO AUTOMATIZADOS (GitHub Actions)
+--------------------------------------------------------------------------------
+Decisão: workflow em .github/workflows/docker-publish.yml que builda e
+publica a imagem a cada `git push` na branch `main`.
+
+Motivo: evita o passo manual de build+push a cada deploy. Gera duas tags:
+  - `latest`      -> sempre a build mais recente
+  - `main-<sha>`  -> tag imutável ligada a um commit específico, útil para
+                     rollback preciso (fazer rollback para "latest" é
+                     ambíguo porque a tag se move a cada build)
+
+Requisito de autenticação: nenhum, quando executado via Actions (o
+GITHUB_TOKEN é gerado e expira automaticamente por execução). Só é
+necessário um Personal Access Token (PAT) se alguém quiser fazer
+`docker push` manualmente do terminal, fora do contexto do workflow.
+
+--------------------------------------------------------------------------------
+2.3 CAMINHOS DE VOLUME CORRIGIDOS A PARTIR DO Dockerfile REAL
+--------------------------------------------------------------------------------
+Decisão: bind mounts em /home/bcsheetprocessor/{uploads,output,templates}
+dentro do container (não /app/... como numa primeira versão rascunho deste
+relatório, corrigida após inspeção do Dockerfile real).
+
+Motivo: o Dockerfile define WORKDIR /home/${USERNAME} (USERNAME=
+bcsheetprocessor por padrão), então os diretórios uploads/output/templates
+citados no docker-compose.yaml original ficam dentro dessa home, não em /app.
+
+--------------------------------------------------------------------------------
+2.4 PUBLICAÇÃO DE PORTA EM mode: host (não o ingress mesh padrão)
+--------------------------------------------------------------------------------
+Decisão: a porta 8000 é publicada com `mode: host` no lugar do modo
+`ingress` padrão do Swarm.
+
+Motivo: o modo `ingress` (padrão) coloca uma VIP com load balancing na
+frente da porta publicada, distribuindo requisições entre nós mesmo que o
+container só exista em um nó. Isso pode interferir na configuração já
+validada em produção do Cloudflare Tunnel (rocky10-homelab), que espera
+falar diretamente com essa porta neste host específico — a configuração
+atual já exige que a Service URL do túnel seja
+https://sheets-processor.renanclemonini.dev.br:443 (nunca localhost), e
+que exista uma entrada de loopback em /etc/hosts na VM. `mode: host`
+reproduz o comportamento de bind direto que o Compose já tinha, evitando
+reabrir esse problema de TLS mismatch já resolvido anteriormente.
+
+Trade-off aceito: como só há 1 réplica e a porta é bind direto no host,
+durante um deploy de nova versão o container antigo precisa ser parado
+antes do novo subir (ver seção 2.6) — ou seja, há um breve downtime a cada
+atualização. Considerado aceitável para este cenário de 1 nó.
+
+--------------------------------------------------------------------------------
+2.5 CREDENCIAIS SENSÍVEIS MOVIDAS PARA DOCKER SECRETS
+--------------------------------------------------------------------------------
+Decisão: REDIS_URL, N8N_WEBHOOK_USER e N8N_WEBHOOK_PASSWORD passam a ser
+Docker secrets (`docker secret create`) em vez de variáveis de ambiente
+vindas do .env.
+
+Motivo: a diretiva `env_file:` do Compose é ignorada silenciosamente pelo
+`docker stack deploy` — não existe aviso, ela simplesmente não tem efeito
+em modo Swarm. Como o .env atual contém credenciais (URL completa do Redis
+Cloud com usuário/senha, credenciais do webhook n8n), a alternativa correta
+do Swarm para dados sensíveis são os secrets, que ficam criptografados no
+Raft log do cluster e são montados como arquivo em /run/secrets/ dentro do
+container — nunca aparecem em `docker inspect` nem em variável de ambiente
+em texto puro.
+
+Variável NÃO sensível (N8N_WEBHOOK_URL) permanece como variável de ambiente
+comum no stack file, usando a interpolação ${VAR} que o `docker stack
+deploy` also suporta a partir do shell/.env no momento do parse do arquivo
+(isso é diferente e não tem o mesmo problema do `env_file:` — é
+substituição de texto feita ANTES do deploy, não uma diretiva de runtime).
+
+Consequência no código: como o config.py da aplicação lê REDIS_URL como
+variável de ambiente comum (não como arquivo), foi necessário adaptar o
+entrypoint.sh para ler o conteúdo do secret em /run/secrets/ e exportá-lo
+como variável de ambiente antes de subir o Uvicorn — ver arquivo completo
+na seção 3.2. Essa mudança é compatível com o `docker compose up` original:
+se os arquivos de secret não existirem (cenário Compose, sem Swarm), os
+blocos `if` simplesmente não são executados e o .env tradicional continua
+funcionando sem nenhuma alteração de comportamento.
+
+--------------------------------------------------------------------------------
+2.6 ESTRATÉGIA DE ROLLING UPDATE E ROLLBACK AUTOMÁTICO
+--------------------------------------------------------------------------------
+Decisão:
+  - update_config.order: stop-first (obrigatório, ver seção 2.4)
+  - update_config.failure_action: rollback
+  - healthcheck mantido idêntico ao original (curl em / a cada 30s)
+
+Motivo: se uma nova versão da imagem não passar do healthcheck dentro do
+start_period configurado, o Swarm desfaz automaticamente o deploy sem
+necessidade de intervenção manual. Isso reduz o risco de um deploy quebrado
+ficar no ar sem ninguém notar imediatamente.
+
+--------------------------------------------------------------------------------
+2.7 SERVIÇO FIXADO NO NÓ VIA placement.constraints
+--------------------------------------------------------------------------------
+Decisão: constraint `node.labels.app == bc-sheet-processor`, aplicada
+manualmente rotulando o nó com `docker node update --label-add`.
+
+Motivo: os volumes de uploads/output/templates são bind mounts locais ao
+disco do host. Em Swarm, se o cluster tivesse mais de um nó e essa
+constraint não existisse, o agendador poderia mover o serviço para outro
+nó em um reagendamento, e os arquivos ficariam órfãos no nó antigo
+(upload processado em um nó, tentativa de download roteada para outro
+nó pelo ingress mesh -> erro). A constraint garante que o serviço sempre
+suba no mesmo host onde os dados residem, enquanto o projeto não migrar
+para um storage compartilhado (NFS/GlusterFS) entre nós.
+
+--------------------------------------------------------------------------------
+2.8 LIMITES E RESERVAS DE RECURSO MANTIDOS
+--------------------------------------------------------------------------------
+Decisão: os mesmos valores já validados em produção foram preservados,
+apenas reescritos na sintaxe deploy.resources do Swarm:
+  limits:       cpus: "2"   memory: 1.5G
+  reservations: cpus: "1"   memory: 1G
+
+Motivo: esses valores já foram dimensionados e testados para a VM de 2
+vCPUs / 3.6Gi RAM na sessão de ajuste de workers documentada no relatório
+original do projeto — não há motivo para alterá-los nesta migração.
+
+================================================================================
+3. ARQUIVOS ENTREGUES (CONTEÚDO COMPLETO)
+================================================================================
+
+--------------------------------------------------------------------------------
+3.1 docker-stack.yml  (novo arquivo, raiz do projeto)
+--------------------------------------------------------------------------------
+version: "3.9"
+
+services:
+  sheet-processor:
+    # Swarm NUNCA builda imagem — precisa já existir no registry.
+    # Publicada automaticamente pelo workflow .github/workflows/docker-publish.yml
+    image: ghcr.io/renanclemonini/bc-sheet-processor:${TAG:-latest}
+    # (container_name removido — não existe em Swarm, o nome do serviço já identifica)
+
+    ports:
+      # mode: host preserva o comportamento atual (bind direto na porta do host,
+      # sem passar pelo ingress routing mesh/VIP do Swarm). Importante para não
+      # reabrir o problema de TLS mismatch com o Cloudflare Tunnel que você já
+      # resolveu — o Tunnel espera falar exatamente com este host nesta porta.
+      - target: 8000
+        published: 8000
+        protocol: tcp
+        mode: host
+
+    volumes:
+      # Caminhos reais confirmados pelo Dockerfile: WORKDIR é
+      # /home/bcsheetprocessor (USERNAME default do build arg), não /app.
+      # Bind mounts locais ao nó — só funcionam corretamente enquanto o
+      # serviço estiver fixado (constraint abaixo) no rocky10-srv01. Se algum
+      # dia você escalar para múltiplos nós, isso precisa migrar para storage
+      # compartilhado (NFS/GlusterFS) ou os uploads/downloads vão falhar
+      # dependendo de qual nó o ingress mesh escolher.
+      - /srv/bc-sheet-processor/uploads:/home/bcsheetprocessor/uploads
+      - /srv/bc-sheet-processor/output:/home/bcsheetprocessor/output
+      - /srv/bc-sheet-processor/templates:/home/bcsheetprocessor/templates
+
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WORKERS=${WORKERS:-2}
+      # Não-sensível, pode continuar como env var normal (Swarm faz
+      # interpolação de ${VAR} a partir do shell/.env no momento do
+      # `docker stack deploy` — isso é diferente de `env_file:`, que o
+      # Swarm ignora; essa interpolação de ${VAR} funciona igual ao Compose).
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+    secrets:
+      # Sensíveis vão para Docker secrets — não aparecem em `docker inspect`
+      # nem em variável de ambiente em texto puro, ficam em /run/secrets/.
+      - redis_url
+      - n8n_webhook_user
+      - n8n_webhook_password
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          # Fixa no nó com o volume local. Rotule o nó antes de dar deploy:
+          # docker node update --label-add app=bc-sheet-processor <NODE_ID>
+          - node.labels.app == bc-sheet-processor
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        # stop-first é obrigatório aqui (não start-first): como a porta usa
+        # mode: host e replicas: 1, dois containers não podem ocupar a
+        # porta 8000 no mesmo host ao mesmo tempo. Isso significa um breve
+        # downtime a cada deploy — normal para 1 nó só.
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1.5G
+        reservations:
+          cpus: "1"
+          memory: 1G
+
+secrets:
+  redis_url:
+    external: true
+  n8n_webhook_user:
+    external: true
+  n8n_webhook_password:
+    external: true
+
+--------------------------------------------------------------------------------
+3.2 entrypoint.sh  (substitui o arquivo atual na raiz do projeto)
+--------------------------------------------------------------------------------
+#!/bin/ash
+set -e
+
+# --- NOVO: leitura de Docker secrets (Swarm) ---
+# Secrets do Swarm chegam como arquivo em /run/secrets/, não como env var.
+# O config.py espera REDIS_URL / N8N_WEBHOOK_USER / N8N_WEBHOOK_PASSWORD
+# como env var comum, então exportamos aqui se o arquivo existir.
+# Se rodar via `docker compose up` (sem secrets), os `if` não entram e o
+# .env normal (via `environment:` do compose) continua funcionando igual.
+if [ -f /run/secrets/redis_url ]; then
+  export REDIS_URL="$(cat /run/secrets/redis_url)"
+fi
+if [ -f /run/secrets/n8n_webhook_user ]; then
+  export N8N_WEBHOOK_USER="$(cat /run/secrets/n8n_webhook_user)"
+fi
+if [ -f /run/secrets/n8n_webhook_password ]; then
+  export N8N_WEBHOOK_PASSWORD="$(cat /run/secrets/n8n_webhook_password)"
+fi
+# --- fim do trecho novo ---
+
+chown -R __USERNAME__:__USERNAME__ /home/__USERNAME__/uploads /home/__USERNAME__/output
+
+exec su-exec __USERNAME__ poetry run python run.py
+
+NOTA: o token __USERNAME__ é substituído pelo Dockerfile durante o build
+(via sed), exatamente como já acontece hoje — nenhuma mudança nesse
+mecanismo. A única diferença em relação ao entrypoint.sh original são os
+3 blocos `if` adicionados no topo.
+
+--------------------------------------------------------------------------------
+3.3 .github/workflows/docker-publish.yml  (novo arquivo, dentro de .github/workflows/)
+--------------------------------------------------------------------------------
+name: Build and Push to GHCR
+
+on:
+  push:
+    branches: [main]
+    # Só rebuilda se algo relevante para a imagem mudou (evita build
+    # desnecessário quando só o README ou docs mudam)
+    paths-ignore:
+      - "README.md"
+      - "refatoracao-by-ia/**"
+      - ".playwright-mcp/**"
+
+permissions:
+  contents: read
+  packages: write   # necessário para publicar em ghcr.io
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}   # vira renanclemonini/bc-sheet-processor automaticamente
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extrair metadata (tags)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix={{branch}}-,format=short
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            USERNAME=bcsheetprocessor
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+================================================================================
+4. PASSO A PASSO DE EXECUÇÃO
+================================================================================
+
+0. Adicionar os arquivos ao repositório:
+   - Copiar docker-stack.yml para a raiz do projeto
+   - Substituir entrypoint.sh pela versão da seção 3.2
+   - Criar .github/workflows/docker-publish.yml com o conteúdo da seção 3.3
+   - git add . && git commit -m "chore: preparar migração para Docker Swarm"
+     && git push (isso já dispara o primeiro build/push automático para o GHCR)
+
+1. Verificar se o pacote publicado no GHCR precisa de autenticação para
+   pull (pacote herda a visibilidade do repositório; se privado, será
+   necessário `docker login ghcr.io` também na VM que vai rodar o Swarm,
+   usando um Personal Access Token com escopo read:packages).
+
+2. Inicializar o Swarm na VM Rocky Linux:
+   docker swarm init --advertise-addr 10.10.10.2
+
+3. Rotular o nó:
+   docker node ls
+   docker node update --label-add app=bc-sheet-processor <NODE_ID_OU_HOSTNAME>
+
+4. Criar diretórios de dados no host:
+   sudo mkdir -p /srv/bc-sheet-processor/{uploads,output,templates}
+   sudo chown -R 1000:1000 /srv/bc-sheet-processor
+   (copiar conteúdo de ./uploads, ./output, ./templates para lá, se desejar
+   preservar algo — lembrando que o estado de job expira em 1h no Redis)
+
+5. Criar os secrets:
+   echo -n "<REDIS_URL completa>" | docker secret create redis_url -
+   echo -n "<usuario n8n>"        | docker secret create n8n_webhook_user -
+   echo -n "<senha n8n>"          | docker secret create n8n_webhook_password -
+
+6. Fazer o deploy:
+   export TAG=latest
+   export WORKERS=2
+   export N8N_WEBHOOK_URL="<url do webhook n8n>"
+   docker stack deploy -c docker-stack.yml bc-sheet-processor
+
+7. Validar:
+   docker stack services bc-sheet-processor
+   docker service ps bc-sheet-processor_sheet-processor
+   docker service logs -f bc-sheet-processor_sheet-processor
+   - Confirmar log "Redis conectado — iniciando uvicorn com N workers"
+   - Repetir o teste de 2 uploads simultâneos usado na validação original
+     do projeto (job criado/consultado corretamente, download 200 OK)
+
+8. Deploys futuros: um git push já publica uma nova tag main-<sha>; usar
+   essa tag (mais segura que "latest" para rollback preciso):
+   export TAG=main-<sha>
+   docker stack deploy -c docker-stack.yml bc-sheet-processor
+
+9. Rollback manual, se necessário:
+   docker service rollback bc-sheet-processor_sheet-processor
+
+================================================================================
+5. LIMITAÇÕES CONHECIDAS DESTE SETUP (1 nó de Swarm)
+================================================================================
+
+- Sem alta disponibilidade real de host: se o rocky10-srv01 cair, o serviço
+  cai. Swarm oferece restart automático em caso de crash de processo e
+  rolling update controlado, mas não protege contra falha do host físico
+  inteiro (isso exigiria mais de um nó + storage compartilhado).
+
+- Downtime breve a cada deploy: consequência aceita da combinação mode:host
+  + replicas:1 (ver seção 2.4/2.6) — não é um deploy "zero-downtime" no
+  sentido estrito, mas o rollback automático em caso de falha do
+  healthcheck mitiga o risco de indisponibilidade prolongada.
+
+- Escalabilidade horizontal (replicas > 1) não é possível hoje sem migrar
+  uploads/output/templates para um storage compartilhado entre nós
+  (NFS ou GlusterFS são os candidatos mais simples). A constraint de
+  placement atual resolve o problema para 1 réplica fixa, não para múltiplas.
+
+- Se o cluster crescer para mais de 1 nó no futuro, as portas TCP/UDP 7946
+  (discovery) e UDP 4789 (VXLAN/overlay) precisam estar liberadas entre os
+  nós — não é necessário no cenário atual de 1 nó só.
+
+================================================================================
+FIM DO RELATÓRIO
+================================================================================

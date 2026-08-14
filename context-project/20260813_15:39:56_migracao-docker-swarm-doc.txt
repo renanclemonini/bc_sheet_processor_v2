@@ -1,0 +1,174 @@
+========================================================================
+RELATÓRIO — MUDANÇAS NO PROCESSO DE DEPLOY COM DOCKER SWARM
+E ANÁLISE DE DOWNTIME (NGINX + CLOUDFLARE)
+========================================================================
+Projeto: bc_sheet_processor (normalização de planilhas - BotConversa)
+Ambiente: VM Rocky Linux (rocky10-srv01), Proxmox, 2 vCPUs / 3.6Gi RAM
+Data: 13/08/2026
+
+========================================================================
+1. COMO O DEPLOY FUNCIONA HOJE (COMPOSE, NA VM)
+========================================================================
+
+1. `./spa/spa-compose/deploy.sh` na VM:
+   git pull origin main
+   docker compose down
+   docker compose up -d --build
+2. Build e imagem ficam NA VM (cache Docker local); o .env da VM
+   fornece todas as variáveis (REDIS, n8n).
+3. nginx (na mesma VM) faz proxy de localhost:8000 para o container
+   bc_sheet_processor, e o Cloudflare Tunnel aponta para o nginx.
+
+Downtime atual por deploy: o `down` acontece ANTES do `--build` —
+ou seja, o nginx devolve 502 durante o build inteiro (potencialmente
+MINUTOS). O downtime já existe hoje; não é zero.
+
+========================================================================
+2. COMO PASSA A SER (SWARM)
+========================================================================
+
+1. git push -> GitHub Actions BUILDA no CI e publica
+   ghcr.io/renanclemonini/bc-sheet-processor:
+     - latest
+     - docker-swarm-migration-<sha> (tag imutável)
+2. Na VM, `./spa/spa-swarm/deploy.sh`:
+   git pull -> TAG automática -> docker manifest inspect (nunca
+   deploya imagem inexistente) -> docker stack deploy -> serviço
+   bc_sheets_processor_swarm bind direto na porta 8000 (mode: host,
+   igual ao Compose).
+3. Credenciais viram Docker secrets (bcsp_*); entrypoint lê
+   /run/secrets/ (compatível com Compose).
+4. Volumes movem de ./uploads|output|templates para
+   /srv/bc-sheet-processor/.
+
+Comparativo Compose (hoje) x Swarm (novo):
+  - Build da imagem:  na VM (--build)          | no GitHub CI (imagem pronta)
+  - Downtime do build: incluído no deploy       | zero (imagem já pronta)
+  - Janela de troca:   down -> up               | stop-first (down -> up), mesma natureza
+  - Credenciais:       .env em texto puro       | secrets criptografados
+  - Dados:             ./uploads|output|templates | /srv/bc-sheet-processor/
+  - Recovery:          restart: always          | Swarm re-agenda + failure_action: rollback
+
+========================================================================
+3. ANÁLISE DE DOWNTIME
+========================================================================
+
+Nginx proxying 8000 significa: o proxy_pass http://localhost:8000
+(ou upstream) continua válido — o Swarm ocupa exatamente a mesma
+porta/host que o Compose. Nenhuma mudança no nginx é necessária para
+o app funcionar. O que muda é só o comportamento durante a janela de
+troca.
+
+3.1 Janela de downtime em cada deploy (Swarm)
+  - stop-first (obrigatório por causa de mode: host + 1 réplica):
+    o container antigo para antes do novo subir.
+  - Janela = tempo de (1) pull da imagem + (2) boot do uvicorn
+    (~5-10s de container até aceitar conexão).
+  - Pull já acontece durante o deploy. RECOMENDAÇÃO para minimizar:
+    adicionar `docker pull` explícito ANTES do `docker stack deploy`
+    no deploy.sh (staging da imagem — o pull deixa de contar na
+    janela). Com imagem local, a janela fica em ~10-20s, vs. os
+    minutos de hoje (down -> build -> up).
+  - O healthcheck (start_period: 40s) NÃO bloqueia tráfego — é só
+    para o orquestrador decidir rollback; o serviço já atende antes
+    de ficar healthy.
+
+3.2 Problemas REAIS que podem aparecer com o nginx
+
+  1) Upstream marcado como down (o mais provável de morder):
+     se o site usa bloco `upstream { server 127.0.0.1:8000; }` sem
+     override, o default do nginx é max_fails=1 fail_timeout=10s —
+     uma falha única durante o stop-first marca o nginx como down
+     por 10s DE BOA (nginx continua devolvendo 502 mesmo depois do
+     app voltar). Correção de 1 linha se aplicável:
+
+       upstream bc_sheets {
+           server 127.0.0.1:8000 max_fails=0 fail_timeout=0;
+       }
+
+  2) 502 feio durante a janela (opcional):
+     error_page 502 =503 /502.html com página de manutenção
+     amigável (ubuntu injeta uma página genérica por padrão, que já
+     aparece hoje durante o build).
+
+  3) Healthcheck do nginx (se houver): se usa nginx -reload /
+     keepalive por fora, nada muda — o upstream continua fixo em
+     127.0.0.1:8000.
+
+  4) TLS/Cloudflare: nada muda — o tunnel continua falando com o
+     nginx :443, que fala com :8000. Não precisa loopback em
+     /etc/hosts nem mexer no tunnel (a preocupação do relatório
+     antigo era o tunnel falar direto com a porta; se hoje ele
+     passa pelo nginx, sequer se aplica).
+
+3.3 Migração inicial (a troca Compose -> Swarm) — perto de zero
+
+  Fases 1-4 com o Compose NO AR (downtime zero):
+    1. Commit + push da branch (gera a 1ª imagem no GHCR) —
+       AGUARDAR o workflow terminar (docker manifest inspect na VM
+       confirma).
+    2. Na VM: swarm-init.sh (init + label + secrets) + criar
+       /srv/bc-sheet-processor/{uploads,output,templates} + copiar
+       conteúdo de templates/ (e preservar arquivos úteis de
+       uploads/ e output/).
+    3. docker pull ghcr.io/renanclemonini/bc-sheet-processor:docker-swarm-migration-<sha>
+    4. Testar o stack com override (STACK_OVERRIDE_FILE, como no
+       teste local) — só não com a porta: como o Compose ocupa a
+       8000, o teste em paralelo não é possível; o teste completo
+       já foi validado localmente.
+
+  Fase 5 — a troca (única janela, ~15-30s):
+
+       docker compose down        # app para (nginx devolve 502 nesta janela)
+       docker stack deploy -c docker-stack.yml --with-registry-auth bc_sheets_processor_swarm
+
+       ...e validar (log "Redis conectado", docker service ps,
+       smoke test).
+
+  Fase 6 — rollback de emergência se algo falhar:
+       docker stack rm
+       docker compose up -d --build
+       (o entrypoint é retrocompatível — volta ao estado atual sem
+       tocar em nada)
+
+========================================================================
+4. OUTROS RISCOS E NOTAS
+========================================================================
+
+- Jobs em andamento morrem na troca (estado só no Redis com TTL 1h,
+  processo morto) — uploads são manuais, janela curta, impacto baixo.
+- 1ª migração depende do 1º push (imagem no GHCR não existe ainda);
+  repo público -> pull sem login.
+- RAM: mesma footprint (1 réplica, mesmos limits 2 CPU/1.5G) —
+  compatível com os 3.6Gi da VM.
+- Nenhuma porta nova de firewall (1 nó; mode: host na 8000).
+- O .env da VM continua sendo fonte para secrets e para a
+  interpolação (N8N_WEBHOOK_URL, WORKERS) — nunca será editado, e o
+  swarm-init.sh gera os secrets a partir dele.
+
+========================================================================
+5. INFORMAÇÕES NECESSÁRIAS DA VM (para fechar o plano com precisão)
+========================================================================
+
+1. Config do nginx do domínio sheets-processor.renanclemonini.dev.br
+   (/etc/nginx/sites-available/...): o bloco server inteiro — para
+   confirmar se usa upstream com server 127.0.0.1:8000 (problema
+   #1 da seção 3.2), TLS cert path e se há proxy_next_upstream /
+   error_page customizados.
+2. Caminho do projeto na VM (onde o Compose sobe hoje) e versões:
+   docker --version e docker compose version.
+3. Cadeia Cloudflare: o tunnel aponta para https://<nginx>:443
+   (host remoto -> nginx -> 8000) ou direto para a porta 8000?
+   (define se a preocupação de TLS mismatch do relatório antigo se
+   aplica).
+4. Conteúdo atual de ./uploads, ./output, ./templates na VM — o que
+   precisa ser preservado na migração para /srv (templates sim;
+   uploads/output são resíduos?).
+5. Se existe systemd unit/crontab que gerencie o container hoje
+   (além do restart: always).
+6. O comando exato usado no último deploy (o spa/deploy.sh? com o
+   .env cheio de que variáveis — só os NOMES, não os valores).
+
+========================================================================
+FIM DO RELATÓRIO
+========================================================================

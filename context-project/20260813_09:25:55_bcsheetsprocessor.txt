@@ -1,0 +1,191 @@
+# BC Sheet Processor — Relatório Técnico
+
+## 1. Visão Geral
+
+Sistema web (single-container) para normalização de planilhas Excel de contatos do BotConversa: padroniza nomes (Title Case, separação em primeiro/sobrenome), telefones (remoção de caracteres especiais e dígitos extras) e etiquetas. Processamento é assíncrono em background, permitindo uploads e consultas de progresso simultâneos.
+
+**Stack:** FastAPI + Uvicorn (ASGI) · OpenPyXL · Jinja2 · Redis (Redis Cloud externo) · Docker/Compose · Poetry · httpx/user-agents (telemetria)
+
+**Platforma de produção:** VM propia (Proxmox, Rocky 10 — `rocky10-srv01`) com 2 vCPUs e 3.6Gi RAM; Redis externo gerenciado (Redis Cloud) definido via `REDIS_URL` no `.env`.
+
+---
+
+## 2. Arquitetura
+
+```
+bcsheetsprocessor/
+├── main.py                  # FastAPI app: monta statics e inclui routers
+├── config.py                # Diretórios, Jinja2Templates, ThreadPoolExecutor(3), envs n8n
+├── route/                   # APIRouters (camada de roteamento HTTP)
+│   ├── page_route.py        #   GET /
+│   ├── upload_route.py      #   POST /upload
+│   └── result_route.py      #   GET /status/{job_id}, GET /download/{job_id}
+├── controller/              # Lógica de cada endpoint (sem acesso direto a HTTP internals)
+│   ├── upload_controller.py #   Salva arquivo, cria job, agenda processamento
+│   ├── status_controller.py #   Busca estado do job (404 se não encontrado)
+│   └── download_controller.py  # Valida arquivo e serve FileResponse
+├── schema/                  # Tipos (TypedDict/Pydantic)
+│   ├── job.py               #   JobStatus, JobResult
+│   └── upload.py            #   UploadResponse
+└── service/                 # Regras de negócio
+    ├── excel_service.py     #   Processamento da planilha (thread) + submit
+    ├── job_service.py       #   Estado dos jobs (Redis ou memória)
+    └── telemetry_service.py #   Dados do request + envio ao webhook n8n
+```
+
+Key references: `bcsheetsprocessor/main.py:9` (app), `config.py:17` (executor de 3 threads), `config.py:18-21` (envs).
+
+---
+
+## 3. Fluxo de Processamento
+
+1. **Upload** — `POST /upload` recebe `.xlsx/.xls` (valida extensão, 400 se inválida), grava em `uploads/{job_id}_{nome}` e cria estado `processing/0%` no job_service (`upload_controller.py:18-31`).
+2. **Agendamento** — `submit_processamento` (`excel_service.py:377-387`) despacha `processar_excel_background` no `ThreadPoolExecutor(max_workers=3)` de `config.py:17`, passando o event loop do processo para o envio de telemetria.
+3. **Processamento em thread** (`excel_service.py:39-374`):
+   - `load_workbook(data_only=True)` — ignora fórmulas e usa valores calculados
+   - Detecta padrão de colunas (3 ou 4 colunas); erro 400 se nenhum reconhecido
+   - Progresso: 10 → 30 → +50 (a cada 1000 linhas) → 85 → 100
+   - Valida se há linhas válidas; gera novo `.xlsx` em `output/{nome_base}_{uuid4}.xlsx`; valida o arquivo gerado reabrindo-o
+   - Salva estado `completed` com métricas (linhas originais/novas, brancas, colunas)
+   - `finally`: agenda envio de telemetria ao n8n e remove o upload temporário
+4. **Download** — `GET /download/{job_id}` só serve se `status == completed` (400 caso contrário), valida o Excel antes de servir e retorna `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+
+---
+
+## 4. API
+
+| Método | Rota | Descrição | Resposta |
+|---|---|---|---|
+| GET | `/` | Interface web de upload (Jinja2) | HTML |
+| POST | `/upload` | Upload de planilha | `{success, job_id, message, status_url}` |
+| GET | `/status/{job_id}` | Progresso/resultado | JSON de `JobStatus` |
+| GET | `/download/{job_id}` | Arquivo processado | `.xlsx` (FileResponse) |
+
+**JobStatus** (`schema/job.py:13`): `status (processing|completed|error)`, `progresso`, `arquivo_original`, `arquivo_saida`, `nome_arquivo`, `resultado`, `aviso_formulas`, `error`, `colunas_encontradas`.
+
+**Resultado** (`schema/job.py:4`): `linhas_originais`, `colunas_originais`, `colunas_encontradas`, `linhas_novo`, `linhas_em_branco`, `colunas_em_branco`.
+
+**Erros comuns:** 400 (extensão inválida, formato não reconhecido, download prematuro), 404 (job não encontrado / arquivo sumiu), 500 (caminho indefinido, arquivo vazio/corrompido).
+
+---
+
+## 5. Regras de Normalização
+
+**Padrões aceitos** (`excel_service.py:13-28`):
+- **Padrão 3 colunas:** `Telefone | Nome | Etiquetas` (nome completo numa coluna)
+- **Padrão 4 colunas:** `Primeiro nome | Sobrenome | Telefone | Etiquetas`
+- Variantes aceitas de cabeçalho: `nome(s)`, `telefone(s)/contato(s)/celular(es)`, `etiqueta(s)/tag(s)`, `primeiro(s) nome(s)`, `sobrenome(s)`
+
+**Transformações:**
+- **Nome:** separação em primeiro nome + sobrenome, ambos em Title Case (padrão 4 colunas concatena excedentes do primeiro nome ao sobrenome)
+- **Telefone:** remoção de tudo não-dígito (`re.sub(r"\D", "")`) e, enquanto > 13 dígitos, remove o 4º e 5º dígitos (regra conhecida para DDD+código de país)
+- **Etiquetas:** concatena com vírgula + tag padrão "NomeConfirmado" (mantém original se não for `nan`)
+- **Linhas descartadas:** vazias, com telefone inválido (< 10 dígitos) ou com células `None` em colunas importantes (possíveis fórmulas não calculadas — contadas e reportadas em `aviso_formulas`)
+- **Validação final:** se nenhuma linha válida, erro com dica de recalcular fórmulas (`F9`)
+
+---
+
+## 6. Estado dos Jobs (Redis)
+
+`job_service.py:8-22` decide no import:
+- **Redis OK** (`REDIS_URL` do `.env`, `decode_responses=True`) → `use_redis=True`, chaves `job:{job_id}` com TTL de 3600s (`setex`)
+- **Redis indisponível** → fallback em dicionário em memória (`jobs_status_fallback`), com aviso "não funciona com múltiplos workers"
+
+**Importante para multi-worker:** cada worker é um processo; o fallback em memória é por processo. Sem Redis, o `/status` de um job criado em outro worker retorna 404. Por isso o launcher (seção 8) garante **1 worker quando Redis está fora**.
+
+---
+
+## 7. Telemetria (n8n)
+
+`telemetry_service.py`:
+- `coletar_dados_request` extrai: IP (CF-Connecting-IP → X-Forwarded-For → client), device_type (bot/tablet/mobile/desktop via `user-agents`), browser (sec-ch-ua com filtro de marcas genéricas), os_name, país (cf-ipcountry), payload_size, cf-ray etc.
+- `enviar_log_para_n8n` posta para `N8N_WEBHOOK_URL` com Basic Auth opcional (`N8N_WEBHOOK_USER/PASSWORD`), timeout 5s, e **nunca propaga exceção** (só loga). Se URL vazia, ignora.
+- Payload do job (agendado via `run_coroutine_threadsafe` no loop do processo): status, arquivos, métricas, duração_ms, erro, dados do request.
+
+---
+
+## 8. Infraestrutura Docker
+
+**Dockerfile** (`Dockerfile:2-40`):
+- Base `python:3.13.14-alpine3.24`; usuário não-root `bcsheetprocessor` (UID definido via `USERNAME`)
+- Poetry 2.4.1 instalado no home do usuário; deps instaladas com `--no-root --no-ansi`
+- `COPY . .` com `.dockerignore` (exclui `.git`, `.venv`, `.env`, caches)
+- `ENTRYPOINT ["/entrypoint.sh"]`
+
+**entrypoint.sh:**
+- Corrige permissões dos volumes (`uploads/`, `output/`)
+- Executa `exec su-exec USERNAME poetry run python run.py`
+
+**run.py (novo — launcher, sessão atual):**
+- Lê `WORKERS` (default 2) e faz `ping()` no Redis (timeouts 3s)
+- Redis OK → uvicorn com N workers; log `✓ Redis conectado — iniciando uvicorn com N workers`
+- Redis fora → **1 worker forçado** com log `✗ Redis indisponível — iniciando uvicorn com 1 worker (fallback)`
+- `if __name__ == "__main__"` obrigatório (uvicorn multiprocessing reimporta o script); porta via `PORT` (default 8000)
+
+**docker-compose.yaml:**
+- Porta `8000:8000`; volumes `./uploads`, `./output`, `./templates`
+- Environment: `PYTHONUNBUFFERED=1`, `REDIS_URL`, N8N webhook vars, `WORKERS` (default 2)
+- `restart: always`; healthcheck `curl -f http://localhost:8000/` (30s/10s/3 retries, start_period 40s)
+- Limites (dimensionados p/ VM de 2 vCPUs/3.6Gi, sessão atual): `limits: cpus '2', memory 1.5G`; `reservations: cpus '1', memory 1G`
+
+---
+
+## 9. Configuração (`./.env`)
+
+| Variável | Uso |
+|---|---|
+| `USERNAME` | Usuário no container (ex.: `bcsheetprocessor`) |
+| `REDIS_URL` | URL completa do Redis Cloud externo (com credenciais) |
+| `WORKERS` | Nº de workers uvicorn (default 2; fallback automático para 1 sem Redis) |
+| `N8N_WEBHOOK_URL` | Webhook de telemetria (vazio = desabilitado) |
+| `N8N_WEBHOOK_USER` / `N8N_WEBHOOK_PASSWORD` | Basic Auth do webhook (opcional) |
+| `PORT` | Porta interna (Render usa essa variável; default 8000) |
+
+`.env` é gitignored (não vai para a imagem nem para o repositório).
+
+---
+
+## 10. Operação
+
+Scripts em `spa/`:
+- `service-up.sh` / `service-down.sh` — subir/parar
+- `rebuild.sh` — `git pull origin main` + rebuild se houver mudanças fora de `templates/` (mudanças só de template não rebuildam — Jinja2 recarrega sozinho)
+- `deploy.sh` — deploy completo
+- `logs.sh` — logs do container
+
+**Validações pós-deploy:** log `✓ Redis conectado` / mensagens do launcher; `docker exec bc_sheet_processor ps aux` mostrando `run.py` (supervisor) + N processos spawn de workers; healthcheck `Up (healthy)`; teste com 2 uploads simultâneos (status compartilhado entre workers via Redis).
+
+**Limitações conhecidas:**
+- Estado de jobs vive só no Redis com TTL 1h — restart do container não mantém histórico após expiração; jobs em andamento morrem com o container
+- Planilhas muito grandes podem estourar memória (OpenPyXL carrega o workbook em RAM) — risco de OOM com limite 1.5G, mitigado pelo `restart: always`
+- Files de `output/` não são limpos automaticamente (limpeza manual `rm -rf uploads/* output/*` documentada no README)
+
+---
+
+## 11. Histórico da Sessão (mudanças aplicadas em produção)
+
+Ajuste de **1 → 2 workers** com as seguintes mudanças (validadas em produção):
+
+1. **`run.py` (novo)** — launcher com checagem de Redis e fallback automático para 1 worker com log explícito
+2. **`entrypoint.sh:6`** — passou a executar `poetry run python run.py` no lugar de `uvicorn ... --workers 2` fixo
+3. **`docker-compose.yaml`** — `cpus '1'→'2'`, `memory 1G→1.5G`, `reservations 0.5→1 CPU / 512M→1G`, nova env `WORKERS`
+4. **`.env`** — adicionado `WORKERS=2`
+5. **`README.md`** — documentação de `WORKERS` e do fallback
+6. **Validação:** deploy com `docker compose up -d --build`; logs confirmando 2 workers e Redis conectado; uploads simultâneos de 1500 linhas completados com status compartilhado; download 200 OK; arquivos de teste removidos
+
+**Ganho na prática:** paralelismo real de CPU (2 vCPUs → 1 worker por núcleo; OpenPyXL é CPU-bound e GIL-bloqueado, então threads não paralelizam) + app responsivo durante processamento pesado. **Pré-requisito obrigatório:** Redis estável (estado dos jobs entre processos).
+
+---
+
+## 12. Observações e Riscos
+
+- Com `WORKERS > 1`, **Redis é requisito funcional**, não opcional — o launcher já força 1 worker sem Redis, mas se o Redis cair com o container já rodando, `/status` de jobs novos ficará inconsistente (upload em um worker, consulta em outro)
+- `ThreadPoolExecutor(max_workers=3)` por worker: até 3 planilhas "simultâneas" por processo (intercaladas em CPU)
+- `asyncio.get_event_loop()` em `submit_processamento` (`excel_service.py:378`) pode emitir deprecation warning em versões futuras do Python — candidato a refatoração
+- Rotas `/debug/*` comentadas em `page_route.py`
+- Mudanças locais não commitadas existem em `bcsheetsprocessor/route/*.py` e `excel_service.py` (anteriores à sessão) — conferir antes de commitar
+- Jobs em memória + TTL Redis 1h: sem persistência de histórico além de 1h
+
+---
+
+*Relatório gerado a partir de análise completa do código, da configuração Docker e de validações executadas em produção na sessão de 13/08/2026.*

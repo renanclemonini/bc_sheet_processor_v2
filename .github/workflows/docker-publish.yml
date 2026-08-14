@@ -9,7 +9,6 @@ on:
     # desnecessário quando só o README ou docs mudam)
     paths-ignore:
       - "README.md"
-      - "refatoracao-by-ia/**"
       - ".playwright-mcp/**"
 
 permissions:
