@@ -66,82 +66,81 @@ http://localhost:8000
 
 ### Useful commands
 
-**Produção (Docker Swarm) — scripts em `spa/spa-swarm/`:**
+**Production (Docker Swarm) — scripts in `spa/spa-swarm/`:**
 ```bash
-# Preparar o host (idempotente): swarm init + label + cria /srv (sudo) +
-# cria os secrets a partir do .env (somente leitura — nunca edita o .env)
+# Prepare the host (idempotent): swarm init + label + creates /srv (sudo) +
+# creates the secrets from .env (read-only — never edits .env)
 ./spa/spa-swarm/swarm-init.sh
 
-# Up/start service (docker stack deploy, com pré-flight e falha rápida)
+# Up/start service (docker stack deploy, with pre-flight and fast fail)
 ./spa/spa-swarm/service-up.sh
 
-# Deploy (git pull + docker stack deploy com tag imutável automática)
+# Deploy (git pull + docker stack deploy with automatic immutable tag)
 ./spa/spa-swarm/deploy.sh
 
-# Rebuild quando o push já publicou nova imagem no GHCR; rsync de templates/
+# Rebuild when the push already published a new image to GHCR; rsync of templates/
 ./spa/spa-swarm/rebuild.sh
 
-# Rebuild otimizado (recomendado): TAG de origin/<branch> → aguarda GHCR
-# publicar → pre-pull da imagem → stack deploy (downtime mínimo, swap rápido)
+# Optimized rebuild (recommended): TAG from origin/<branch> → waits for GHCR
+# to publish → pre-pulls the image → stack deploy (minimal downtime, fast swap)
 ./spa/spa-swarm/new-rebuild.sh
 
-# Smoke test pós-deploy (2 uploads → status → download; gera eventos no n8n)
+# Post-deploy smoke test (2 uploads → status → download; generates n8n events)
 ./spa/spa-swarm/smoke-test.sh
 
 # Stop service (docker stack rm)
 ./spa/spa-swarm/service-down.sh
 
-# Desmontar tudo: stack rm + swarm leave --force
+# Tear everything down: stack rm + swarm leave --force
 ./spa/spa-swarm/swarm-leave.sh
 
 # View logs
 ./spa/spa-swarm/logs.sh
 ```
 
-**Desenvolvimento local (Docker Compose) — scripts em `spa/spa-compose/`:**
+**Local development (Docker Compose) — scripts in `spa/spa-compose/`:**
 ```bash
 ./spa/spa-compose/service-up.sh
 ./spa/spa-compose/logs.sh
 ```
 
-### Operation — Docker Swarm (produção)
+### Operation — Docker Swarm (production)
 
-A imagem é publicada automaticamente em `ghcr.io/renanclemonini/bc-sheet-processor`
-pelo workflow `.github/workflows/docker-publish.yml` a cada push em `main`
-(ou `docker-swarm-migration` durante a migração). Tags: `latest` + `<branch>-<sha>`.
+The image is automatically published to `ghcr.io/renanclemonini/bc-sheet-processor`
+by the `.github/workflows/docker-publish.yml` workflow on every push to `main`
+(or `docker-swarm-migration` during the migration). Tags: `latest` + `<branch>-<sha>`.
 
-Primeiro deploy em um host novo (1 nó):
+First deploy on a new host (1 node):
 ```bash
-# 1. Swarm init + label + /srv + secrets (idempotente). Tudo automático:
-#    cria /srv/bc-sheet-processor (sudo) e os secrets bcsp_* a partir do .env.
-#    Se algo falhar (ex.: sudo sem TTY), mostra o comando manual exato.
+# 1. Swarm init + label + /srv + secrets (idempotent). All automated:
+#    creates /srv/bc-sheet-processor (sudo) and the bcsp_* secrets from .env.
+#    If something fails (e.g., sudo without TTY), it shows the exact manual command.
 ./spa/spa-swarm/swarm-init.sh
 
-# 2. Deploy do stack (serviço: bc_sheets_processor_swarm_sheet-processor)
+# 2. Deploy the stack (service: bc_sheets_processor_swarm_sheet-processor)
 ./spa/spa-swarm/deploy.sh
 
-# 3. (Opcional) Validação pós-deploy
+# 3. (Optional) Post-deploy validation
 ./spa/spa-swarm/smoke-test.sh
 ```
 
-Secrets criados (prefixo `bcsp_` isola no swarm):
+Created secrets (the `bcsp_` prefix isolates them in the swarm):
 `bcsp_redis_url`, `bcsp_n8n_webhook_user`, `bcsp_n8n_webhook_password` —
-criados pelo `swarm-init.sh` a partir do `.env` (leitura; o `.env` nunca é
-modificado pelo script).
+created by `swarm-init.sh` from `.env` (read-only; `.env` is never
+modified by the script).
 
-Deploys futuros (rollback preciso numa tag imutável): a tag
-`<branch>-<sha>` é calculada automaticamente após o git pull; override
-manual continua válido:
+Future deploys (precise rollback on an immutable tag): the `<branch>-<sha>` tag
+is automatically calculated after `git pull`; manual override remains valid:
 ```bash
 export TAG=main-<sha>
 ./spa/spa-swarm/deploy.sh
 ```
 
-Rollback manual: `docker service rollback bc_sheets_processor_swarm_sheet-processor`
+Manual rollback: `docker service rollback bc_sheets_processor_swarm_sheet-processor`
 
-Restrições do setup 1 nó: bind mounts locais em `/srv/bc-sheet-processor`
-(exigem a constraint de placement `node.labels.app`), downtime breve a cada
-deploy (`mode: host` + `replicas: 1`, ordem `stop-first`) e rollback automático
+1-node setup constraints: local bind mounts in `/srv/bc-sheet-processor`
+(require the `node.labels.app` placement constraint), brief downtime on every
+deploy (`mode: host` + `replicas: 1`, `stop-first` order) and automatic rollback
 via healthcheck (`failure_action: rollback`).
 
 ## 📂 Folder Structure
@@ -170,7 +169,7 @@ bc_sheet_processor/
 ├── .dockerignore       # Files ignored in build
 ├── entrypoint.sh       # Docker container entrypoint (referenced by Dockerfile)
 ├── run.py              # Launcher: decide workers based on Redis availability
-├── spa/                # Operation scripts — spa-swarm/ (produção Swarm) e spa-compose/ (dev local)
+├── spa/                # Operation scripts — spa-swarm/ (production Swarm) and spa-compose/ (local dev)
 ├── templates/          # HTML templates
 │   └── index.html     # Upload interface
 ├── uploads/           # Temporary files (auto-created)
@@ -183,19 +182,18 @@ The system accepts two spreadsheet patterns, in `.xlsx`, `.xls` or `.ods` (Libre
 The output is always `.xlsx` in Pattern 2.
 
 ### Pattern 1 (3 columns):
-| Telefone | Nome | Etiquetas |
-|----------|------|-----------|
+| Phone | Name | Tags |
+|-------|------|------|
 | 11987654321 | John Doe | Customer |
 
 ### Pattern 2 (4 columns):
-| Primeiro nome | Sobrenome | Telefone | Etiquetas |
-|---------------|-----------|----------|-----------|
+| First name | Last name | Phone | Tags |
+|------------|-----------|-------|------|
 | John | Doe | 11987654321 | Customer |
 
 **Notes:**
 - Phones are automatically normalized
 - Names are converted to Title Case format
-- Default tag "NomeConfirmado" is automatically added
 
 ## 📡 API Endpoints
 
