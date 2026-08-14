@@ -1,0 +1,122 @@
+# Execução — Deploy em produção + tooling + limpeza do repo (pós-ODF)
+
+*Log de execução da sessão de 14/08/2026 (tarde). Continua o `20260814_11:15:44_exec_suporte_odf.txt`
+(deploy do suporte ODF permanecia pendente no checklist daquela sessão).*
+
+---
+
+## 1. Contexto
+
+- O `exec_suporte_odf.txt` registrou a implementação do suporte `.ods`/`.xls` com a pendência
+  "*Deploy no swarm + smoke test com .ods*" ainda desmarcada.
+- Esta sessão fecha essa pendência (deploy) e adiciona: tooling de deploy unificado, correção de
+  infra no servidor e limpeza do repositório.
+
+---
+
+## 2. Deploy em produção (rocky10-srv01)
+
+1. **Bootstrap:** `./spa/spa-swarm/new-rebuild.sh` (versão antiga no servidor) fez o `git pull`
+   interno trazendo os commits `71a97f9`, `76e657a` e `106bb32` (update-prod.sh + fix do early-exit).
+2. **Falha de infra descoberta:** primeira execução do `update-prod.sh` abortou em
+   `sudo: rsync: command not found` — o rsync **nunca tinha sido executado** no servidor antes
+   (o caminho "só templates → rsync" dos scripts nunca tinha sido acionado). O `set -e` parou o
+   script **depois** do deploy (imagem nova no ar, templates não sincronizados).
+3. **Correção:** `sudo dnf install -y rsync` → `rsync-3.4.4-1.el10_2.x86_64` (repo baseos).
+4. **Re-execução:** `./spa/spa-swarm/update-prod.sh` concluído com sucesso:
+   - Deploy idempotente (imagem `main-106bb32` já local — "Image is up to date")
+   - `templates/` sincronizados para `/srv/bc-sheet-processor/templates/`
+   - `docker stack services` → `bc_sheets_processor_swarm_sheet-processor` **1/1 Running**
+
+**Estado final da produção:** serviço `bc_sheets_processor_swarm_sheet-processor`
+(id `i125g9iqmxp8`), imagem `ghcr.io/renanclemonini/bc-sheet-processor:main-106bb32`
+(digest `sha256:e5d5a148…`), replicas 1/1, sem downtime planejado (pre-pull + swap stop-first).
+
+---
+
+## 3. Tooling de deploy
+
+### `spa/spa-swarm/update-prod.sh` (novo — fluxo oficial em 1 comando)
+
+- Evento da sessão: novo wrapper que executa, em ordem: `new-rebuild.sh` (pull → TAG remota →
+  espera GHCR → pre-pull → stack deploy) → `sudo rsync -a --delete templates/
+  /srv/bc-sheet-processor/templates/` (sempre — interface atualizada) → `docker stack services`
+  (confirmação).
+- `set -e` + `cd "$(dirname "$0")/../.."` (roda de qualquer diretório). Falha no deploy aborta
+  **antes** do rsync (evita UI nova sobre backend velho). Sem smoke test embutido (evita poluir o n8n).
+- Uso: a partir de agora, qualquer atualização = `./spa/spa-swarm/update-prod.sh`.
+  Primeiro uso num host exige rodar o `new-rebuild.sh` antigo uma vez (bootstrap — puxa o repo
+  e o próprio script).
+
+### `spa/spa-swarm/new-rebuild.sh` (fix `71a97f9`)
+
+- Removido o **early-exit** que encerrava com "Nada novo para atualizar" (`ANTES == DEPOIS`) sem
+  deployar — comportamento que ocultou o rsync na sessão anterior (incidente do "Already up to date").
+- Agora **sempre aplica o deploy** (TAG derivada de `origin/${BRANCH}`), mantendo o rsync apenas
+  para o caso "só templates mudaram".
+
+### Permissões dos scripts (`106bb32`)
+
+- `clean-swarm-output-files.sh`, `new-rebuild.sh` e `update-prod.sh` commitados com modo `100755`
+  (executáveis no servidor logo após o pull).
+
+---
+
+## 4. Limpeza do repositório
+
+- **`refatoracao-by-ia/` removido** (6 arquivos rastreados: 2 markdown/html + `templates/` com
+  design-tokens.css, index.html e 2 imagens). Referências limpas em:
+  - `.dockerignore` (linha `refatoracao-by-ia/`)
+  - `.github/workflows/docker-publish.yml` (`paths-ignore: "refatoracao-by-ia/**"`)
+  - `README.md` (nota do `.dockerignore`)
+- **`bckp/` removido** (`docker-bkp.txt` + `index.html` — artefatos do setup docker-compose antigo,
+  obsoletos após a migração Swarm). Decisão do usuário.
+- Nenhuma referência residual fora dos logs históricos em `context-project/`.
+
+---
+
+## 5. Reorganização de contextos
+
+- Criada a pasta **`context-project/`** na raiz com os 5 documentos da sessão, renomeados com
+  prefixo de data/hora de criação (ordem ascendente = cronológica):
+  - `20260813_09:25:55_bcsheetsprocessor.txt`
+  - `20260813_11:43:12_migracao-docker-swarm.txt`
+  - `20260813_15:39:56_migracao-docker-swarm-doc.txt`
+  - `20260814_11:15:38_refat_suporte_odf.txt`
+  - `20260814_11:15:44_exec_suporte_odf.txt`
+- `.gitignore` perdeu a regra `*.txt` — os documentos agora são rastreáveis no repo.
+- `requirements.txt` e `docker-bkp` mantidos fora da pasta (funcionais/rastreados).
+
+---
+
+## 6. README
+
+- **Traduzido para inglês** (comandos dos scripts Swarm, seção Operation, tabelas de formato).
+- Chaves JSON da API (`arquivo_original`, `linhas_originais`, …) e a mensagem de log
+  `✗ Redis indisponível…` **mantidas verbatim** (contrato real do código — decisão Opção A).
+- Nota "Default tag NomeConfirmado" **removida** (tag não é mais usada no código).
+
+---
+
+## 7. Estado atual
+
+| Item | Valor |
+|---|---|
+| Repo local/origin | `main = 0fd7cd7` (sincronizado) |
+| Imagem em produção | `main-106bb32` (digest `e5d5a148…`) |
+| Serviço | `bc_sheets_processor_swarm_sheet-processor` — 1/1 Running |
+| rsync no servidor | instalado (`3.4.4-1.el10_2`) |
+| Fluxo de atualização | `./spa/spa-swarm/update-prod.sh` |
+
+---
+
+## 8. Pendências / próximo deploy
+
+1. **Smoke test com `.ods`** — nunca executado em produção; `smoke-test.sh` gera apenas fixtures
+   `.xlsx`. Adicionar fixture `.ods` opcional em execuções futuras.
+2. **Próximo push** — o build do GHCR publicará nova tag `main-<sha>`; o `update-prod.sh` detecta
+   e deploya automaticamente (wait loop cobre a publicação).
+3. **`deploy.sh` legado** — ainda usa o fluxo antigo (TAG sem `export`); documentado como
+   mantido para comparação.
+4. **Branch `docker-swarm-migration`** — remover após o merge definitivo em `main`
+   (comentário já sinaliza no workflow).
