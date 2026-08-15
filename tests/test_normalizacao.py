@@ -95,6 +95,18 @@ class TestDetectarPadrao:
     def test_padrao_3_colunas_acento_telefone_variantes(self):
         assert detectar_padrao(["contato", "nome", "etiqueta"]) == (True, False)
 
+    def test_padrao_3_colunas_primeiro_nome(self):
+        assert detectar_padrao(["primeiro nome", "telefone", "etiquetas"]) == (True, False)
+
+    def test_padrao_3_colunas_primeiros_nomes_plural(self):
+        assert detectar_padrao(["primeiros nomes", "contato", "tags"]) == (True, False)
+
+    def test_padrao_3_colunas_numero_com_acento(self):
+        assert detectar_padrao(["nome", "número", "etiquetas"]) == (True, False)
+
+    def test_padrao_3_colunas_numero_sem_acento(self):
+        assert detectar_padrao(["nomes", "numeros", "tags"]) == (True, False)
+
     def test_padrao_4_colunas(self):
         assert detectar_padrao(["primeiro nome", "sobrenome", "telefone", "etiquetas"]) == (False, True)
 

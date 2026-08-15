@@ -29,6 +29,22 @@ class TestProcessamentoSucesso:
         assert status["resultado"]["linhas_originais"] == 8
         assert status["resultado"]["linhas_novo"] == 6
 
+    def test_padrao3_primeiro_nome_e_numero_metricas(self, ambi_test, fixture_path):
+        _, status = rodar_processamento(
+            ambi_test, fixture_path("padrao3_primeiro_nome.xlsx"), loop=asyncio.new_event_loop()
+        )
+        assert status["status"] == "completed"
+        assert status["resultado"]["colunas_encontradas"] == ["primeiro nome", "número", "etiquetas"]
+        assert status["resultado"]["linhas_originais"] == 8
+        assert status["resultado"]["linhas_novo"] == 6
+        assert status["resultado"]["colunas_em_branco"] == 0
+
+        wb = load_workbook(status["arquivo_saida"], read_only=True)
+        valores = list(wb.active.iter_rows(values_only=True))
+        wb.close()
+        assert valores[0] == ("Primeiro nome", "Sobrenome", "Telefone", "Etiquetas")
+        assert valores[1] == ("Maria", "Silva", "12998123456", "cliente")
+
     def test_padrao4_metricas(self, ambi_test, fixture_path):
         _, status = rodar_processamento(ambi_test, fixture_path("padrao4.xlsx"), loop=asyncio.new_event_loop())
         assert status["status"] == "completed"

@@ -50,6 +50,22 @@ def gerar_padrao3() -> Path:
     return _salvar_xlsx(wb, "padrao3.xlsx")
 
 
+def gerar_padrao3_primeiro_nome() -> Path:
+    """Padrão de 3 colunas com a coluna de nome rotulada 'Primeiro nome' e telefone 'Número'."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Contatos"
+    ws.append(["Primeiro nome", "Número", "Etiquetas"])
+    ws.append(["maria silva", "12998123456", "cliente"])
+    ws.append(["joão de souza", "11987654321", "vip, importado"])
+    ws.append(["ana", "31999998888", "cadastro"])
+    ws.append(["carlos oliveira santos", "27988887777", "cliente"])
+    ws.append([])
+    ws.append(["sem etiqueta", "12911112222", ""])
+    ws.append(["branco meio", "31912345678", None])  # célula vazia no meio
+    return _salvar_xlsx(wb, "padrao3_primeiro_nome.xlsx")
+
+
 def gerar_padrao4() -> Path:
     wb = Workbook()
     ws = wb.active
@@ -150,6 +166,7 @@ def main() -> None:
     if not SOFFICE:
         print("soffice não encontrado — só serão geradas fixtures .xlsx", file=sys.stderr)
     gerar_padrao3()
+    gerar_padrao3_primeiro_nome()
     gerar_padrao4()
     gerar_com_formula()
     gerar_formula_sem_valor()

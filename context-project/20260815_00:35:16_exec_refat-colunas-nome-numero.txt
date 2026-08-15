@@ -1,0 +1,112 @@
+# Execução — Refatoração de detecção de colunas (nome/primeiro nome + variantes de telefone)
+
+*Log de execução da sessão de 15/08/2026 (madrugada). Continua o
+`20260814_17:38:53_exec_logs-de-falha-estruturados.txt` (classificador de falhas + mensagens amigáveis).*
+
+---
+
+## 0. Objetivo
+
+Planilhas com coluna de nome rotulada `primeiro nome` (em vez de `nome`) e telefone rotulado
+`número`/`numeros` falhavam com `Formato de planilha não reconhecido`. Exemplo real do erro:
+
+```
+❌ Erro: Formato de planilha não reconhecido. Colunas encontradas: primeiro nome, telefone, etiquetas
+```
+
+Causa raiz: `detectar_padrao` exigia match **exato** de `nome`/`nomes` para o padrão de 3 colunas —
+`primeiro nome` só era aceito no padrão de 4 colunas (que exige `sobrenome`). A coluna de telefone
+também não reconhecia `número`/`numeros`.
+
+---
+
+## 1. Decisões da sessão (definidas com o usuário)
+
+- **`número` é telefone de verdade** — incluídas as variantes `número`, `números` e `numeros`
+  (headers só são lowercased, não perdem acento); singular/plural conforme convenção das outras tuples.
+- **Nome aceito no padrão 3 colunas**: `nome`, `nomes`, `primeiro nome`, `primeiros nomes`
+  (nova constante `COLUNAS_NOME_3COL = COLUNAS_NOME + COLUNAS_PRIMEIRO_NOME`).
+- **Precedência 4 → 3** no `detectar_padrao`: sem isso, planilha real de 4 colunas
+  (`primeiro nome, sobrenome, telefone, etiquetas`) passaria a casar no padrão 3 e quebraria o
+  split nome/sobrenome — regressão guardada por teste.
+- **AGENTS.md criado** — preferência permanente: toda validação de backend via `poetry run pytest`,
+  sem simulações/arquivos temporários ad-hoc (evita desperdício de tempo e tokens).
+- **Regra de git:** apenas `poetry run pytest` na verificação — **nada de commit/push**
+  (toda decisão de git é do usuário).
+
+---
+
+## 2. Checklist de execução
+
+- [x] `AGENTS.md` (novo) — instruções de testes via pytest para agentes de IA
+- [x] `excel_service.py` — `COLUNAS_NOME_3COL` + `COLUNAS_TELEFONE` com `número`/`números`/`numeros`
+- [x] `excel_service.py` — `detectar_padrao` com precedência 4→3; `col_nome` via união
+- [x] `test_normalizacao.py` — +4 unit tests (`primeiro nome`, `primeiros nomes`, `número`, `numeros`)
+- [x] `gerar_fixtures.py` — nova fixture `padrao3_primeiro_nome.xlsx` (`Primeiro nome | Número | Etiquetas`, 8 linhas) + regeneração
+- [x] `test_excel_service.py` — E2E `test_padrao3_primeiro_nome_e_numero_metricas`
+- [x] `poetry run pytest` → **114 passed** (109 anteriores + 5 novos)
+- [ ] Commit/push do usuário (não feito nesta sessão)
+
+---
+
+## 3. Log das mudanças
+
+1. **`AGENTS.md` (novo)** — instruções para agentes de IA: backend sempre validado via
+   `poetry run pytest`; proibidas simulações ad-hoc (ex.: .xlsx em /tmp, pipeline isolado fora da
+   suíte); novos casos via fixtures no gerador (`tests/fixtures/gerar_fixtures.py`) e/ou unit tests.
+2. **`bcsheetsprocessor/service/excel_service.py`** — nova constante
+   `COLUNAS_NOME_3COL = COLUNAS_NOME + COLUNAS_PRIMEIRO_NOME`; `COLUNAS_TELEFONE` ampliada com
+   `"número"`, `"números"`, `"numeros"`; `detectar_padrao` reescrito com precedência 4→3
+   (se padrão 4 casa → `(False, True)`; só então avalia padrão 3 com `COLUNAS_NOME_3COL`);
+   `col_nome = resolver_coluna(idx, *COLUNAS_NOME_3COL)` no processamento. `COLUNAS_IMPORTANTES`
+   já incluía `COLUNAS_PRIMEIRO_NOME` → heurística de fórmulas não calculadas inalterada.
+3. **`tests/test_normalizacao.py`** — 4 novos testes em `TestDetectarPadrao`:
+   `primeiro nome`+telefone+etiquetas → `(True, False)`; `primeiros nomes`+contato+tags →
+   `(True, False)`; nome+`número`+etiquetas → `(True, False)`; nomes+`numeros`+tags → `(True, False)`.
+   Regressões mantidas: 4 colunas → `(False, True)`, sem padrão → `(False, False)`.
+4. **`tests/fixtures/gerar_fixtures.py`** — novo `gerar_padrao3_primeiro_nome()` (headers
+   `["Primeiro nome", "Número", "Etiquetas"]`, mesma matriz do `padrao3`: 8 linhas, 6 válidas,
+   1 em branco) + chamada no `main()`. Fixtures binárias regeneradas (soffice reconverte .ods/.xls).
+5. **`tests/test_excel_service.py`** — E2E `test_padrao3_primeiro_nome_e_numero_metricas`:
+   `completed`, `colunas_encontradas == ["primeiro nome", "número", "etiquetas"]`,
+   `linhas_originais == 8`, `linhas_novo == 6`, `colunas_em_branco == 0`; saída reaberta com
+   `("Maria", "Silva", "12998123456", "cliente")` — prova que o valor da coluna `primeiro nome`
+   passa por `normalizar_nome_completo` e que `número` é lido como telefone.
+6. **Sem mudanças**: `sheet_reader.py`, `failure_log.py`, controllers, frontend, README, infra
+   (Docker/Swarm). `failure_log` continua classificando `formato_nao_reconhecido` normalmente.
+
+---
+
+## 4. Validações
+
+- `poetry run pytest` → **114 passed** (~1.5s).
+- `git status`: 14 modificados + 2 novos (abaixo), **nada commitado/pushado**:
+  `excel_service.py`, `test_excel_service.py`, `test_normalizacao.py`, `gerar_fixtures.py`,
+  11 fixtures binárias; novos `AGENTS.md`, `padrao3_primeiro_nome.xlsx`.
+
+---
+
+## 5. Estado atual (15/08/2026 ~00:35)
+
+| Item | Valor |
+|---|---|
+| Repo local | `main` com 14 modificados + 2 novos — sem commit |
+| Testes | 114 passed (`poetry run pytest`) |
+| Imagem em produção | inalterada nesta sessão |
+| Fluxo de atualização | `./spa/spa-swarm/update-prod.sh` (push → GHCR → deploy) |
+
+---
+
+## 6. Pendências / próximos passos
+
+1. **Commit do usuário** — sugestão:
+   `feat: aceitar coluna 'primeiro nome'/'número' no padrão de 3 colunas` (inclui AGENTS.md e fixtures).
+2. **Próximo push** — GHCR publica `main-<sha>`, `update-prod.sh` deploya.
+3. **Follow-up opcional (fora do escopo)** — normalização de headers por remoção de acentos +
+   match parcial ("Nome completo", "Primer Nombre") num passo comum antes do matching exato.
+4. **Branch `docker-swarm-migration`** — remover após o merge definitivo em `main` (pendência antiga).
+
+---
+
+*Log gerado a partir de validações locais da sessão de 15/08/2026. Sem alterações em produção
+(nada commitado).*

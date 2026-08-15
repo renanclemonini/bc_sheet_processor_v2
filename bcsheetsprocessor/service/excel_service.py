@@ -16,6 +16,7 @@ from bcsheetsprocessor.service.telemetry_service import enviar_log_para_n8n
 
 COLUNAS_NOME = ("nome", "nomes")
 COLUNAS_PRIMEIRO_NOME = ("primeiro nome", "primeiros nomes")
+COLUNAS_NOME_3COL = COLUNAS_NOME + COLUNAS_PRIMEIRO_NOME
 COLUNAS_SOBRENOME = ("sobrenome", "sobrenomes")
 COLUNAS_TELEFONE = (
     "telefone",
@@ -24,6 +25,9 @@ COLUNAS_TELEFONE = (
     "contatos",
     "celular",
     "celulares",
+    "número",
+    "números",
+    "numeros",
 )
 COLUNAS_ETIQUETAS = ("etiquetas", "etiqueta", "tag", "tags")
 COLUNAS_IMPORTANTES = (
@@ -82,20 +86,27 @@ def normalizar_etiquetas(valor) -> str:
 
 
 def detectar_padrao(headers: list[str]) -> tuple[bool, bool]:
-    """Detecta padrão 3 colunas (nome|telefone|etiquetas) e 4 colunas (1º|sobrenome|telefone|etiquetas)"""
+    """Detecta padrão 3 colunas (nome|telefone|etiquetas) e 4 colunas (1º|sobrenome|telefone|etiquetas).
+
+    Precedência 4 → 3: o padrão de 4 colunas é mais específico e, quando presente
+    (coluna de sobrenome), tem prioridade — a coluna "primeiro nome" também casa o
+    padrão de 3 colunas.
+    """
     idx = {h: i for i, h in enumerate(headers)}
-    padrao_3_colunas = (
-        resolver_coluna(idx, *COLUNAS_NOME) is not None
-        and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
-        and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
-    )
     padrao_4_colunas = (
         resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME) is not None
         and resolver_coluna(idx, *COLUNAS_SOBRENOME) is not None
         and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
         and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
     )
-    return padrao_3_colunas, padrao_4_colunas
+    if padrao_4_colunas:
+        return False, True
+    padrao_3_colunas = (
+        resolver_coluna(idx, *COLUNAS_NOME_3COL) is not None
+        and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
+        and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
+    )
+    return padrao_3_colunas, False
 
 
 def linha_vazia(linha: list) -> bool:
@@ -173,7 +184,7 @@ def processar_excel_background(
         linhas_telefone_invalido = 0
         linhas_com_telefone_invalido = []
 
-        col_nome = resolver_coluna(idx, *COLUNAS_NOME)
+        col_nome = resolver_coluna(idx, *COLUNAS_NOME_3COL)
         col_primeiro_nome = resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME)
         col_sobrenome = resolver_coluna(idx, *COLUNAS_SOBRENOME)
         col_telefone = resolver_coluna(idx, *COLUNAS_TELEFONE)
