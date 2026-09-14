@@ -63,9 +63,9 @@ services:
           # docker node update --label-add app=bc-sheet-processor <NODE_ID>
           - node.labels.app == bc-sheet-processor
       restart_policy:
-        condition: on-failure
+        condition: any
         delay: 5s
-        max_attempts: 3
+        max_attempts: 10
         window: 60s
       update_config:
         parallelism: 1
