@@ -40,6 +40,8 @@ services:
       # `docker stack deploy` — isso é diferente de `env_file:`, que o
       # Swarm ignora; essa interpolação de ${VAR} funciona igual ao Compose).
       - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     secrets:
       # Sensíveis vão para Docker secrets — não aparecem em `docker inspect`
       # nem em variável de ambiente em texto puro, ficam em /run/secrets/.
