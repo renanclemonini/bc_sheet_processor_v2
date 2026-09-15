@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$(readlink -f "$0")")/../.."
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -30,7 +30,7 @@ NODE_ID=$(docker node ls -q | head -1)
 docker node inspect "$NODE_ID" --format '{{.Spec.Labels}}' | grep -q "app:bc-sheet-processor" \
     || fail "Label app=bc-sheet-processor ausente no nó." "Rode: ./spa/spa-swarm/swarm-init.sh"
 
-for NAME in bcsp_redis_url bcsp_n8n_webhook_user bcsp_n8n_webhook_password; do
+for NAME in bcsp_redis_url bcsp_n8n_webhook_user bcsp_n8n_webhook_password bcsp_telegram_bot_token bcsp_telegram_chat_id; do
     docker secret ls --format '{{.Name}}' | grep -qx "$NAME" \
         || fail "Secret '$NAME' não existe." "Rode: ./spa/spa-swarm/swarm-init.sh (ou crie manualmente)"
 done

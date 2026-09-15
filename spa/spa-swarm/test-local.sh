@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$(readlink -f "$0")")/../.."
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'

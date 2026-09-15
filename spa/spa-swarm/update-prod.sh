@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 echo "🚀 Iniciando update de produção (deploy + interface)..."
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$(readlink -f "$0")")/../.."
 
 # Remove marcador de "deploy pulado" de uma execução anterior, se existir
 rm -f .deploy-skipped

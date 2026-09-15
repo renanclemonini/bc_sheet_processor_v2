@@ -448,6 +448,15 @@ def processar_excel_background(
         except Exception as e:
             print(f"[TELEMETRY] Erro ao agendar envio das notificações: {e}")
 
+        # Remove arquivo temporário
+        if os.path.exists(arquivo_entrada):
+            try:
+                os.remove(arquivo_entrada)
+                print(f"[{job_id}] Arquivo temporário removido")
+            except Exception as e:
+                print(f"[{job_id}] Erro ao remover temporário: {str(e)}")
+
+
 def submit_processamento(temp_path: str, job_id: str, nome_original: str, dados_request: dict):
     loop = asyncio.get_event_loop()
     loop.run_in_executor(

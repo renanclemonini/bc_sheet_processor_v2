@@ -3,7 +3,7 @@ set -e
 
 echo "🚀 Iniciando deploy (Swarm)..."
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$(readlink -f "$0")")/../.."
 
 BRANCH="${DEPLOY_BRANCH:-docker-swarm-migration}"
 git pull origin "$BRANCH"

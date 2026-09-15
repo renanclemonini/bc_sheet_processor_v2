@@ -3,7 +3,7 @@ set -e
 
 echo "🚀 Iniciando rebuild/deploy (Swarm)..."
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$(readlink -f "$0")")/../.."
 
 BRANCH="${DEPLOY_BRANCH:-main}"
 ANTES=$(git rev-parse HEAD)

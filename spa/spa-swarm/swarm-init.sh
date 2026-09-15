@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$(readlink -f "$0")")/../.."
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -55,7 +55,7 @@ set -a
 set +a
 
 # nomes dos secrets | variável de origem no .env
-declare -A SECRETS=( [bcsp_redis_url]="REDIS_URL" [bcsp_n8n_webhook_user]="N8N_WEBHOOK_USER" [bcsp_n8n_webhook_password]="N8N_WEBHOOK_PASSWORD" )
+declare -A SECRETS=( [bcsp_redis_url]="REDIS_URL" [bcsp_n8n_webhook_user]="N8N_WEBHOOK_USER" [bcsp_n8n_webhook_password]="N8N_WEBHOOK_PASSWORD" [bcsp_telegram_bot_token]="TELEGRAM_BOT_TOKEN" [bcsp_telegram_chat_id]="TELEGRAM_CHAT_ID" )
 
 for NAME in "${!SECRETS[@]}"; do
     ENV_VAR="${SECRETS[$NAME]}"
@@ -78,7 +78,7 @@ done
 echo ""
 echo -e "${YELLOW}🔒 Aviso: as credenciais ainda estão em texto puro no .env deste host.${NC}"
 echo -e "${YELLOW}   Este script NUNCA edita o .env — se quiser removê-las, faça manualmente${NC}"
-echo -e "${YELLOW}   (REDIS_URL, N8N_WEBHOOK_USER, N8N_WEBHOOK_PASSWORD) após validar o deploy.${NC}"
+echo -e "${YELLOW}   (REDIS_URL, N8N_WEBHOOK_USER, N8N_WEBHOOK_PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) após validar o deploy.${NC}"
 
 echo ""
 echo -e "${GREEN}Pronto! Suba o app com: ./spa/spa-swarm/service-up.sh${NC}"

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 echo "🚀 Iniciando rebuild/deploy (Swarm)..."
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$(readlink -f "$0")")/../.."
 
 BRANCH="${DEPLOY_BRANCH:-main}"
 ANTES=$(git rev-parse HEAD)
@@ -91,6 +91,35 @@ echo "✅ Imagem confirmada no GHCR — pré-baixando antes do deploy..."
 echo "📥 docker pull ghcr.io/renanclemonini/bc-sheet-processor:${TAG} (pode demorar)..."
 docker pull "ghcr.io/renanclemonini/bc-sheet-processor:${TAG}"
 echo "✅ Imagem disponível localmente — aplicando deploy (swap rápido)..."
+
+# Garante que os external secrets do docker-stack.yml existem antes do deploy:
+# o Swarm NÃO cria secrets declarados como `external: true` e o deploy falha
+# com "secret not found". Idempotente: cria só o que estiver faltando, a
+# partir do .env já carregado acima. Secrets são imutáveis — valor errado
+# exige `docker secret rm` + recriar (a task em execução mantém o valor atual
+# até o próximo deploy).
+declare -A SECRETS=(
+    [bcsp_redis_url]="REDIS_URL"
+    [bcsp_n8n_webhook_user]="N8N_WEBHOOK_USER"
+    [bcsp_n8n_webhook_password]="N8N_WEBHOOK_PASSWORD"
+    [bcsp_telegram_bot_token]="TELEGRAM_BOT_TOKEN"
+    [bcsp_telegram_chat_id]="TELEGRAM_CHAT_ID"
+)
+SECRETS_EXISTENTES=$(docker secret ls --format '{{.Name}}')
+for NAME in "${!SECRETS[@]}"; do
+    if echo "$SECRETS_EXISTENTES" | grep -qx "$NAME"; then
+        continue
+    fi
+    ENV_VAR="${SECRETS[$NAME]}"
+    VAL="${!ENV_VAR}"
+    if [ -z "$VAL" ]; then
+        echo "❌ Secret $NAME não existe e \$$ENV_VAR está vazio no .env."
+        echo "   Preencha $ENV_VAR no .env (ou crie o secret manualmente) e rode de novo."
+        exit 1
+    fi
+    echo -n "$VAL" | docker secret create "$NAME" -
+    echo "🔐 Secret $NAME criado a partir de \$$ENV_VAR do .env."
+done
 
 docker stack deploy -c docker-stack.yml bc_sheets_processor_swarm
 

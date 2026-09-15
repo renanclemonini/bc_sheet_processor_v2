@@ -125,9 +125,11 @@ First deploy on a new host (1 node):
 ```
 
 Created secrets (the `bcsp_` prefix isolates them in the swarm):
-`bcsp_redis_url`, `bcsp_n8n_webhook_user`, `bcsp_n8n_webhook_password` —
-created by `swarm-init.sh` from `.env` (read-only; `.env` is never
-modified by the script).
+`bcsp_redis_url`, `bcsp_n8n_webhook_user`, `bcsp_n8n_webhook_password`,
+`bcsp_telegram_bot_token`, `bcsp_telegram_chat_id` — created by
+`swarm-init.sh` from `.env` (read-only; `.env` is never modified by the
+script). Future deploys also ensure any missing secret is created from
+`.env` before `docker stack deploy` (`new-rebuild.sh`).
 
 Future deploys (precise rollback on an immutable tag): the `<branch>-<sha>` tag
 is automatically calculated after `git pull`; manual override remains valid:
