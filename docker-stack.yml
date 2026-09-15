@@ -40,8 +40,6 @@ services:
       # `docker stack deploy` — isso é diferente de `env_file:`, que o
       # Swarm ignora; essa interpolação de ${VAR} funciona igual ao Compose).
       - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     secrets:
       # Sensíveis vão para Docker secrets — não aparecem em `docker inspect`
       # nem em variável de ambiente em texto puro, ficam em /run/secrets/.
@@ -49,6 +47,8 @@ services:
       - bcsp_redis_url
       - bcsp_n8n_webhook_user
       - bcsp_n8n_webhook_password
+      - bcsp_telegram_bot_token
+      - bcsp_telegram_chat_id
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
@@ -95,4 +95,8 @@ secrets:
   bcsp_n8n_webhook_user:
     external: true
   bcsp_n8n_webhook_password:
+    external: true
+  bcsp_telegram_bot_token:
+    external: true
+  bcsp_telegram_chat_id:
     external: true
