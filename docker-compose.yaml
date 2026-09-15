@@ -19,6 +19,8 @@ services:
       - N8N_WEBHOOK_USER=${N8N_WEBHOOK_USER}
       - N8N_WEBHOOK_PASSWORD=${N8N_WEBHOOK_PASSWORD}
       - WORKERS=${WORKERS:-2}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     restart: always
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]

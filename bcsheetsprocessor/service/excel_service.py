@@ -12,7 +12,11 @@ from bcsheetsprocessor.config import OUTPUT_DIR, executor
 from bcsheetsprocessor.service import job_service
 from bcsheetsprocessor.service.failure_log import registrar_falha
 from bcsheetsprocessor.service.sheet_reader import ler_planilha
-from bcsheetsprocessor.service.telemetry_service import enviar_log_para_n8n
+from bcsheetsprocessor.service.telemetry_service import (
+    enviar_log_para_n8n,
+    enviar_log_para_telegram_bot,
+    gerar_relatorio_telegram,
+)
 
 COLUNAS_NOME = ("nome", "nomes")
 COLUNAS_PRIMEIRO_NOME = ("primeiro nome", "primeiros nomes")
@@ -426,20 +430,23 @@ def processar_excel_background(
         payload_telemetria["request"] = dados_request
 
         try:
+            # Envia telemetria completa para o n8n
             asyncio.run_coroutine_threadsafe(
-                enviar_log_para_n8n(payload_telemetria), loop
+                enviar_log_para_n8n(payload_telemetria),
+                loop,
             )
+
+            # Gera relatório amigável para o Telegram
+            relatorio = gerar_relatorio_telegram(payload_telemetria)
+
+            # Envia relatório para o Telegram
+            asyncio.run_coroutine_threadsafe(
+                enviar_log_para_telegram_bot(relatorio),
+                loop,
+            )
+
         except Exception as e:
-            print(f"[TELEMETRY] Erro ao agendar envio para n8n: {e}")
-
-        # Remove arquivo temporário
-        if os.path.exists(arquivo_entrada):
-            try:
-                os.remove(arquivo_entrada)
-                print(f"[{job_id}] Arquivo temporário removido")
-            except Exception as e:
-                print(f"[{job_id}] Erro ao remover temporário: {str(e)}")
-
+            print(f"[TELEMETRY] Erro ao agendar envio das notificações: {e}")
 
 def submit_processamento(temp_path: str, job_id: str, nome_original: str, dados_request: dict):
     loop = asyncio.get_event_loop()
