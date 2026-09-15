@@ -89,6 +89,21 @@ class TestDetectarPadrao:
     def test_padrao_3_colunas(self):
         assert detectar_padrao(["telefone", "nome", "etiquetas"]) == (True, False)
 
+    def test_padrao_3_colunas_sem_etiquetas_telefone_nome(self):
+        assert detectar_padrao(["telefone", "nome"]) == (True, False)
+
+    def test_padrao_3_colunas_sem_etiquetas_primeiro_nome(self):
+        assert detectar_padrao(["primeiro nome", "telefone"]) == (True, False)
+
+    def test_padrao_4_colunas_sem_etiquetas(self):
+        assert detectar_padrao(["primeiro nome", "sobrenome", "telefone"]) == (False, True)
+
+    def test_padrao_4_colunas_nome_sobrenome(self):
+        assert detectar_padrao(["nome", "sobrenome", "telefone"]) == (False, True)
+
+    def test_padrao_4_colunas_nome_sobrenome_com_etiquetas(self):
+        assert detectar_padrao(["nome", "sobrenome", "telefone", "etiquetas"]) == (False, True)
+
     def test_padrao_3_colunas_plural(self):
         assert detectar_padrao(["telefones", "nomes", "tags"]) == (True, False)
 
@@ -114,7 +129,13 @@ class TestDetectarPadrao:
         assert detectar_padrao(["foo", "bar", "baz"]) == (False, False)
 
     def test_sem_padrao_parcial(self):
-        assert detectar_padrao(["nome", "telefone"]) == (False, False)
+        assert detectar_padrao(["nome", "telefone"]) == (True, False)
+
+    def test_sem_padrao_so_nome(self):
+        assert detectar_padrao(["nome"]) == (False, False)
+
+    def test_sem_padrao_sobrenome_sem_nome(self):
+        assert detectar_padrao(["sobrenome", "telefone"]) == (False, False)
 
     def test_headers_vazios(self):
         assert detectar_padrao([]) == (False, False)

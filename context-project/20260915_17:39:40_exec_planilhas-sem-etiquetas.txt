@@ -1,0 +1,135 @@
+# Execução — Suporte a planilhas sem coluna de etiquetas
+
+*Log da sessão de 15/09/2026 (tarde). Continua o
+`20260815_00:35:16_exec_refat-colunas-nome-numero.txt` (variantes de nome/telefone).*
+
+---
+
+## 0. Objetivo
+
+Sistema rejeitava planilhas que não tinham coluna de etiquetas. Pedido do usuário:
+processar planilhas que só tenham as colunas:
+
+- `telefone` + `nome`
+- `primeiro nome` + `sobrenome` + `telefone`
+- `primeiro nome` + `telefone`
+
+Todos os layouts continuam em qualquer ordem de coluna (resolução por `idx`) e aceitam
+singular/plural + variantes já existentes (`contato`, `celular`, `número`, etc.).
+
+---
+
+## 1. Decisões da sessão (definidas com o usuário via perguntas)
+
+- **Etiquetas vira opcional em todos os layouts** — se ausente, saída fica com coluna
+  `Etiquetas` vazia; saída continua sempre 4 colunas.
+- **Aceitar também `nome + sobrenome + telefone`** — antes essa planilha caía no padrão 3
+  (nome completo) e **ignorava o sobrenome em silêncio**. Agora o header `nome` no padrão 4
+  é tratado como primeiro nome via `normalizar_nome_separado`.
+- **Só backend** — `templates/index.html` e README não foram alterados nesta sessão
+  (texto de UI/documentação fica pendente por decisão do usuário).
+- Regra de git mantida: apenas `poetry run pytest` como validação — **nada de commit/push**.
+
+---
+
+## 2. Checklist de execução
+
+- [x] `excel_service.py` — `detectar_padrao` sem exigir `COLUNAS_ETIQUETAS`
+- [x] `excel_service.py` — padrão 4 aceita `nome`/`nomes` (`COLUNAS_NOME_3COL`) como primeiro nome
+- [x] `gerar_fixtures.py` — 4 fixtures `.xlsx` sem etiquetas
+- [x] `test_normalizacao.py` — 7 unit tests novos + ajuste de contrato em `test_sem_padrao_parcial`
+- [x] `test_excel_service.py` — 4 testes E2E (`TestProcessamentoSemEtiquetas`)
+- [x] `poetry run pytest` → **125 passed** (114 anteriores + 11 novos)
+- [ ] Commit/push do usuário (não feito nesta sessão)
+
+---
+
+## 3. Log das mudanças
+
+1. **`bcsheetsprocessor/service/excel_service.py`**
+   - `detectar_padrao` (linha ~92): removida a exigência de `COLUNAS_ETIQUETAS` nos dois
+     padrões; padrão 4 passou a resolver a coluna de primeiro nome com `COLUNAS_NOME_3COL`
+     (união `nome`, `nomes`, `primeiro nome`, `primeiros nomes`) em vez de só
+     `COLUNAS_PRIMEIRO_NOME`. Precedência 4 → 3 preservada (sobrenome presente = padrão 4).
+   - Processamento (linha ~193): `col_primeiro_nome = resolver_coluna(idx, *COLUNAS_NOME_3COL)`.
+   - `col_etiquetas` já era `None`-safe (guardas `col_etiquetas is not None` no loop) —
+     nenhuma outra mudança necessária para etiquetas opcionais.
+   - Docstrings atualizadas.
+
+2. **`tests/fixtures/gerar_fixtures.py`** — 4 funções novas (só `.xlsx`, sem soffice) e
+   chamadas no `main()`:
+   - `gerar_padrao2_telefone_nome()` → `padrao2_telefone_nome.xlsx` (`Telefone | Nome`,
+     header + 4 válidas + 1 em branco = 6 linhas)
+   - `gerar_padrao3_primeiro_nome_sem_etiquetas()` → `padrao3_primeiro_nome_sem_etiquetas.xlsx`
+     (`Primeiro nome | Telefone`, header + 4 linhas)
+   - `gerar_padrao4_sem_etiquetas()` → `padrao4_sem_etiquetas.xlsx`
+     (`Primeiro nome | Sobrenome | Telefone`, header + 4 linhas, inclui sobrenome sem primeiro nome)
+   - `gerar_padrao4_nome_sobrenome()` → `padrao4_nome_sobrenome.xlsx`
+     (`Nome | Sobrenome | Telefone`, header + 3 linhas — cobre o novo header `nome` no padrão 4)
+
+3. **`tests/test_normalizacao.py`** — `TestDetectarPadrao`:
+   - Novos: `(telefone, nome)` → `(True, False)`; `(primeiro nome, telefone)` → `(True, False)`;
+     `(primeiro nome, sobrenome, telefone)` → `(False, True)`; `(nome, sobrenome, telefone)` →
+     `(False, True)`; `(nome, sobrenome, telefone, etiquetas)` → `(False, True)`;
+     `(nome)` e `(sobrenome, telefone)` → `(False, False)`.
+   - **Quebra intencional**: `test_sem_padrao_parcial` (`["nome", "telefone"]`) passou de
+     `(False, False)` para `(True, False)` — era exatamente a rejeição que o pedido elimina.
+
+4. **`tests/test_excel_service.py`** — classe `TestProcessamentoSemEtiquetas` com 4 E2E:
+   - `padrao2_telefone_nome`: `completed`, `colunas_encontradas == ["telefone", "nome"]`,
+     6 originais / 1 em branco / 4 novas; saída `("Maria", "Silva", "12998123456", None)`.
+   - `padrao3_primeiro_nome_sem_etiquetas`: 5 originais / 4 novas; split nome completo ok.
+   - `padrao4_sem_etiquetas`: split primeiro/sobrenome; linha `("", "oliveira", ...)` →
+     `(None, "Oliveira", "27988887777", None)`.
+   - `padrao4_nome_sobrenome`: header `nome` tratado como primeiro nome;
+     `joão de | souza` → `("João", "De Souza", ...)`.
+
+5. **Sem mudanças**: `sheet_reader.py`, `failure_log.py`, controllers, `telemetry_service`,
+   frontend, README, infra (Docker/Swarm).
+
+---
+
+## 4. Validações
+
+- `poetry run pytest` → **125 passed** (~1s).
+- Nota operacional: `pyproject.toml` tem `addopts = "-q"`; para ver o resumo usar
+  `poetry run pytest -o addopts="" -q` (com só `-q` duplicado o pytest imprime apenas os pontos).
+- Fixtures binárias rastreadas foram regeneradas pelo gerador (timestamps mudam os bytes) e
+  **revertidas com `git checkout`** para manter o diff limpo — só as 4 fixtures novas ficaram
+  como untracked. Cuidado: `git ls-files tests/fixtures` inclui `gerar_fixtures.py`; reverter
+  o diretório inteiro apaga a mudança do gerador (aconteceu e foi reaplicada nesta sessão).
+
+---
+
+## 5. Estado atual (15/09/2026 ~17:39)
+
+| Item | Valor |
+|---|---|
+| Repo local | `main`, 4 modificados + 4 novos (fixtures), sem commit |
+| Testes | 125 passed (`poetry run pytest`) |
+| Imagem em produção | inalterada nesta sessão |
+| Fluxo de atualização | `./spa/spa-swarm/update-prod.sh` (push → GHCR → deploy) |
+
+Arquivos modificados: `bcsheetsprocessor/service/excel_service.py`,
+`tests/fixtures/gerar_fixtures.py`, `tests/test_excel_service.py`, `tests/test_normalizacao.py`.
+Novos: `tests/fixtures/padrao2_telefone_nome.xlsx`,
+`tests/fixtures/padrao3_primeiro_nome_sem_etiquetas.xlsx`,
+`tests/fixtures/padrao4_sem_etiquetas.xlsx`, `tests/fixtures/padrao4_nome_sobrenome.xlsx`.
+
+---
+
+## 6. Pendências / próximos passos
+
+1. **Commit do usuário** — sugestão:
+   `feat: aceitar planilhas sem coluna de etiquetas e header 'nome' no padrão 4 colunas`.
+2. **Próximo push** — GHCR publica `main-<sha>`, `update-prod.sh` deploya.
+3. **Follow-up opcional (decidido fora do escopo)** — atualizar `templates/index.html` e README
+   com os novos combos aceitos (ex.: `nome + telefone`, `primeiro nome + telefone`,
+   `primeiro nome + sobrenome + telefone`, etiquetas opcional).
+4. **Follow-up técnico antigo** — normalização de headers por remoção de acentos + match parcial
+   ("Nome completo", "Primer Nombre") num passo comum antes do matching exato.
+
+---
+
+*Log gerado a partir das validações locais da sessão de 15/09/2026. Sem alterações em produção
+(nada commitado).*

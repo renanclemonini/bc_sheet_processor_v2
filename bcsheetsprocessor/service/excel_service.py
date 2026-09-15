@@ -90,25 +90,26 @@ def normalizar_etiquetas(valor) -> str:
 
 
 def detectar_padrao(headers: list[str]) -> tuple[bool, bool]:
-    """Detecta padrão 3 colunas (nome|telefone|etiquetas) e 4 colunas (1º|sobrenome|telefone|etiquetas).
+    """Detecta padrão 3 colunas (nome|telefone) e 4 colunas (1º|sobrenome|telefone).
 
-    Precedência 4 → 3: o padrão de 4 colunas é mais específico e, quando presente
-    (coluna de sobrenome), tem prioridade — a coluna "primeiro nome" também casa o
-    padrão de 3 colunas.
+    Etiquetas é opcional nos dois padrões. Precedência 4 → 3: o padrão de 4 colunas
+    é mais específico e, quando presente (coluna de sobrenome), tem prioridade — a
+    coluna "primeiro nome" também casa o padrão de 3 colunas. No padrão 4 a coluna
+    de primeiro nome aceita tanto "primeiro nome" quanto "nome" (união
+    COLUNAS_NOME_3COL): `nome | sobrenome | telefone` é tratado como primeiro nome
+    + sobrenome, em vez de ignorar o sobrenome no padrão 3.
     """
     idx = {h: i for i, h in enumerate(headers)}
     padrao_4_colunas = (
-        resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME) is not None
+        resolver_coluna(idx, *COLUNAS_NOME_3COL) is not None
         and resolver_coluna(idx, *COLUNAS_SOBRENOME) is not None
         and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
-        and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
     )
     if padrao_4_colunas:
         return False, True
     padrao_3_colunas = (
         resolver_coluna(idx, *COLUNAS_NOME_3COL) is not None
         and resolver_coluna(idx, *COLUNAS_TELEFONE) is not None
-        and resolver_coluna(idx, *COLUNAS_ETIQUETAS) is not None
     )
     return padrao_3_colunas, False
 
@@ -189,7 +190,7 @@ def processar_excel_background(
         linhas_com_telefone_invalido = []
 
         col_nome = resolver_coluna(idx, *COLUNAS_NOME_3COL)
-        col_primeiro_nome = resolver_coluna(idx, *COLUNAS_PRIMEIRO_NOME)
+        col_primeiro_nome = resolver_coluna(idx, *COLUNAS_NOME_3COL)
         col_sobrenome = resolver_coluna(idx, *COLUNAS_SOBRENOME)
         col_telefone = resolver_coluna(idx, *COLUNAS_TELEFONE)
         col_etiquetas = resolver_coluna(idx, *COLUNAS_ETIQUETAS)

@@ -77,6 +77,58 @@ def gerar_padrao4() -> Path:
     return _salvar_xlsx(wb, "padrao4.xlsx")
 
 
+def gerar_padrao2_telefone_nome() -> Path:
+    """Layout mínimo: só telefone + nome completo, sem etiquetas."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Contatos"
+    ws.append(["Telefone", "Nome"])
+    ws.append(["12998123456", "maria silva"])
+    ws.append(["11987654321", "joão de souza"])
+    ws.append(["31999998888", "ana"])
+    ws.append([])
+    ws.append(["27988887777", "carlos oliveira santos"])
+    return _salvar_xlsx(wb, "padrao2_telefone_nome.xlsx")
+
+
+def gerar_padrao3_primeiro_nome_sem_etiquetas() -> Path:
+    """Padrão de 3 colunas sem etiquetas: primeiro nome + telefone."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Contatos"
+    ws.append(["Primeiro nome", "Telefone"])
+    ws.append(["maria silva", "12998123456"])
+    ws.append(["joão de souza", "11987654321"])
+    ws.append(["ana", "31999998888"])
+    ws.append(["carlos oliveira santos", "27988887777"])
+    return _salvar_xlsx(wb, "padrao3_primeiro_nome_sem_etiquetas.xlsx")
+
+
+def gerar_padrao4_sem_etiquetas() -> Path:
+    """Padrão de 4 colunas sem etiquetas: primeiro nome + sobrenome + telefone."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Contatos"
+    ws.append(["Primeiro nome", "Sobrenome", "Telefone"])
+    ws.append(["maria", "silva", "12998123456"])
+    ws.append(["joão de", "souza", "11987654321"])
+    ws.append(["ana", "", "31999998888"])
+    ws.append(["", "oliveira", "27988887777"])
+    return _salvar_xlsx(wb, "padrao4_sem_etiquetas.xlsx")
+
+
+def gerar_padrao4_nome_sobrenome() -> Path:
+    """Padrão de 4 colunas sem etiquetas com header 'Nome' (tratado como primeiro nome)."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Contatos"
+    ws.append(["Nome", "Sobrenome", "Telefone"])
+    ws.append(["maria", "silva", "12998123456"])
+    ws.append(["joão de", "souza", "11987654321"])
+    ws.append(["ana", "", "31999998888"])
+    return _salvar_xlsx(wb, "padrao4_nome_sobrenome.xlsx")
+
+
 def gerar_com_formula() -> Path:
     wb = Workbook()
     ws = wb.active
@@ -167,6 +219,10 @@ def main() -> None:
         print("soffice não encontrado — só serão geradas fixtures .xlsx", file=sys.stderr)
     gerar_padrao3()
     gerar_padrao3_primeiro_nome()
+    gerar_padrao2_telefone_nome()
+    gerar_padrao3_primeiro_nome_sem_etiquetas()
+    gerar_padrao4_sem_etiquetas()
+    gerar_padrao4_nome_sobrenome()
     gerar_padrao4()
     gerar_com_formula()
     gerar_formula_sem_valor()

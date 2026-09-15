@@ -77,6 +77,70 @@ class TestProcessamentoSucesso:
         assert list(ambi_test["uploads_dir"].iterdir()) == []
 
 
+class TestProcessamentoSemEtiquetas:
+    def test_padrao2_telefone_nome(self, ambi_test, fixture_path):
+        _, status = rodar_processamento(
+            ambi_test, fixture_path("padrao2_telefone_nome.xlsx"), loop=asyncio.new_event_loop()
+        )
+        assert status["status"] == "completed"
+        assert status["resultado"]["colunas_encontradas"] == ["telefone", "nome"]
+        assert status["resultado"]["linhas_originais"] == 6
+        assert status["resultado"]["linhas_em_branco"] == 1
+        assert status["resultado"]["linhas_novo"] == 4
+
+        wb = load_workbook(status["arquivo_saida"], read_only=True)
+        valores = list(wb.active.iter_rows(values_only=True))
+        wb.close()
+        assert valores[0] == ("Primeiro nome", "Sobrenome", "Telefone", "Etiquetas")
+        assert valores[1] == ("Maria", "Silva", "12998123456", None)
+
+    def test_padrao3_primeiro_nome_sem_etiquetas(self, ambi_test, fixture_path):
+        _, status = rodar_processamento(
+            ambi_test,
+            fixture_path("padrao3_primeiro_nome_sem_etiquetas.xlsx"),
+            loop=asyncio.new_event_loop(),
+        )
+        assert status["status"] == "completed"
+        assert status["resultado"]["colunas_encontradas"] == ["primeiro nome", "telefone"]
+        assert status["resultado"]["linhas_originais"] == 5
+        assert status["resultado"]["linhas_novo"] == 4
+
+        wb = load_workbook(status["arquivo_saida"], read_only=True)
+        valores = list(wb.active.iter_rows(values_only=True))
+        wb.close()
+        assert valores[1] == ("Maria", "Silva", "12998123456", None)
+
+    def test_padrao4_sem_etiquetas(self, ambi_test, fixture_path):
+        _, status = rodar_processamento(
+            ambi_test, fixture_path("padrao4_sem_etiquetas.xlsx"), loop=asyncio.new_event_loop()
+        )
+        assert status["status"] == "completed"
+        assert status["resultado"]["colunas_encontradas"] == [
+            "primeiro nome", "sobrenome", "telefone",
+        ]
+        assert status["resultado"]["linhas_novo"] == 4
+
+        wb = load_workbook(status["arquivo_saida"], read_only=True)
+        valores = list(wb.active.iter_rows(values_only=True))
+        wb.close()
+        assert valores[1] == ("Maria", "Silva", "12998123456", None)
+        assert valores[4] == (None, "Oliveira", "27988887777", None)
+
+    def test_padrao4_nome_sobrenome(self, ambi_test, fixture_path):
+        _, status = rodar_processamento(
+            ambi_test, fixture_path("padrao4_nome_sobrenome.xlsx"), loop=asyncio.new_event_loop()
+        )
+        assert status["status"] == "completed"
+        assert status["resultado"]["colunas_encontradas"] == ["nome", "sobrenome", "telefone"]
+        assert status["resultado"]["linhas_novo"] == 3
+
+        wb = load_workbook(status["arquivo_saida"], read_only=True)
+        valores = list(wb.active.iter_rows(values_only=True))
+        wb.close()
+        assert valores[1] == ("Maria", "Silva", "12998123456", None)
+        assert valores[2] == ("João", "De Souza", "11987654321", None)
+
+
 class TestProcessamentoTelefoneInvalido:
     def test_contato_mantido_com_aviso(self, ambi_test, fixture_path):
         _, status = rodar_processamento(
