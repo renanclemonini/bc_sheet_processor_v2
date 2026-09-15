@@ -6,14 +6,12 @@ services:
     # (container_name removido — não existe em Swarm, o nome do serviço já identifica)
 
     ports:
-      # mode: host preserva o comportamento atual (bind direto na porta do host,
-      # sem passar pelo ingress routing mesh/VIP do Swarm). Importante para não
-      # reabrir o problema de TLS mismatch com o Cloudflare Tunnel que você já
-      # resolveu — o Tunnel espera falar exatamente com este host nesta porta.
+      # Confirmado em 15/09/2026: o Cloudflare Tunnel fala com nginx:443,
+      # que faz proxy_pass para localhost:8000 — nunca fala direto com o
+      # container. mode: host não é mais necessário para evitar TLS mismatch.
       - target: 8000
         published: 8000
         protocol: tcp
-        mode: host
 
     volumes:
       # Caminhos reais confirmados pelo Dockerfile: WORKDIR é
@@ -72,15 +70,11 @@ services:
       update_config:
         parallelism: 1
         delay: 10s
-        # stop-first é obrigatório aqui (não start-first): como a porta usa
-        # mode: host e replicas: 1, dois containers não podem ocupar a
-        # porta 8000 no mesmo host ao mesmo tempo. Isso significa um breve
-        # downtime a cada deploy — normal para 1 nó só.
-        order: stop-first
+        order: start-first
         failure_action: rollback
       rollback_config:
         parallelism: 1
-        order: stop-first
+        order: start-first
       resources:
         limits:
           cpus: "2"
