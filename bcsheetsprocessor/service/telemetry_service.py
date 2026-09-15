@@ -1,3 +1,5 @@
+import ipaddress
+
 import httpx
 
 from fastapi import Request
@@ -18,6 +20,25 @@ MARCAS_GENERICAS = {
     "not.a/brand",
     "chromium",
 }
+
+
+def normalizar_ip(raw_ip: str | None) -> str | None:
+    """
+    Extrai IPv4 quando o endereço vier no formato IPv4-mapped (::ffff:a.b.c.d).
+    Para IPv6 nativo, não existe conversão real — retorna como veio.
+    """
+    if not raw_ip:
+        return raw_ip
+
+    try:
+        ip_obj = ipaddress.ip_address(raw_ip)
+    except ValueError:
+        return raw_ip
+
+    if isinstance(ip_obj, ipaddress.IPv6Address) and ip_obj.ipv4_mapped:
+        return str(ip_obj.ipv4_mapped)
+
+    return raw_ip
 
 
 def extrair_marca_navegador(sec_ch_ua: str | None) -> str | None:
@@ -54,6 +75,8 @@ def coletar_dados_request(request: Request) -> dict:
 
     if not ip_address and request.client:
         ip_address = request.client.host
+
+    ip_address = normalizar_ip(ip_address)
 
     user_agent_raw = headers.get("user-agent", "") or ""
     ua = parse(user_agent_raw)
